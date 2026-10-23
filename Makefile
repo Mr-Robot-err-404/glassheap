@@ -6,8 +6,8 @@ all: $(BUILD)/glassheap.elf
 $(BUILD):
 	mkdir -p $(BUILD)
 
-$(BUILD)/glassheap.elf: main.odin $(BUILD)/boot.o | $(BUILD)
-	odin build main.odin -file \
+$(BUILD)/glassheap.elf: guest/main.odin $(BUILD)/boot.o | $(BUILD)
+	odin build guest/main.odin -file \
 		-target:freestanding_riscv64 \
 		-build-mode:obj \
 		-no-crt \
