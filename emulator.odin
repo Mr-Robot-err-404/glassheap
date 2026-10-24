@@ -3,19 +3,22 @@ package main
 import "core:fmt"
 import "core:os"
 
-ELF_Header_Field :: struct {
+RAM_SIZE :: 4 * 1024 * 1024 // 4MB
+RAM_OFFSET :: 0x80000000
+
+Header_Field :: struct {
 	offset: i32,
 	size:   i32,
 }
 
-ENTRY :: ELF_Header_Field{24, 8}
-PHOFF :: ELF_Header_Field{32, 8}
-PHNUM :: ELF_Header_Field{56, 2}
+ENTRY :: Header_Field{24, 8}
+PHOFF :: Header_Field{32, 8}
+PHNUM :: Header_Field{56, 2}
 
-PROGRAM_TYPE :: ELF_Header_Field{0, 4}
-PROGRAM_OFFSET :: ELF_Header_Field{8, 8}
-PROGRAM_VADDR :: ELF_Header_Field{16, 8}
-PROGRAM_FILESZ :: ELF_Header_Field{32, 8}
+PROGRAM_TYPE :: Header_Field{0, 4}
+PROGRAM_OFFSET :: Header_Field{8, 8}
+PROGRAM_VADDR :: Header_Field{16, 8}
+PROGRAM_FILESZ :: Header_Field{32, 8}
 
 Segment_Type :: enum u32 {
 	PT_NULL    = 0,
@@ -43,20 +46,24 @@ main :: proc() {
 		fmt.panicf("failed to read elf: %w", err)
 	}
 	header: Header
-	header.Entry = read_u64(data, ENTRY.offset, ENTRY.size)
-	header.Phoff = read_u64(data, PHOFF.offset, PHOFF.size)
-	header.Phnum = read_u16(data, PHNUM.offset, PHNUM.size)
+	header.Entry = read(data, ENTRY.offset, ENTRY.size, u64)
+	header.Phoff = read(data, PHOFF.offset, PHOFF.size, u64)
+	header.Phnum = read(data, PHNUM.offset, PHNUM.size, u16)
+
+	ram := make([]byte, RAM_SIZE)
+	defer delete(ram)
 
 	end := header.Phoff + (56 * u64(header.Phnum))
-	for idx := header.Phoff; idx < end; idx += 56 {
-		buf := data[idx:idx + 56]
-		type := read_u32(buf, PROGRAM_TYPE.offset, PROGRAM_TYPE.size)
+	for i := header.Phoff; i < end; i += 56 {
+		buf := data[i:i + 56]
+
+		type := read(buf, PROGRAM_TYPE.offset, PROGRAM_TYPE.size, u32)
 		if type != 1 {continue}
 
 		load := PLoad {
-			Offset = read_u64(buf, PROGRAM_OFFSET.offset, PROGRAM_OFFSET.size),
-			Vaddr  = read_u64(buf, PROGRAM_VADDR.offset, PROGRAM_VADDR.size),
-			Filesz = read_u64(buf, PROGRAM_FILESZ.offset, PROGRAM_FILESZ.size),
+			Offset = read(buf, PROGRAM_OFFSET.offset, PROGRAM_OFFSET.size, u64),
+			Vaddr  = read(buf, PROGRAM_VADDR.offset, PROGRAM_VADDR.size, u64),
+			Filesz = read(buf, PROGRAM_FILESZ.offset, PROGRAM_FILESZ.size, u64),
 		}
 		fmt.printf(
 			"offset -> 0x%x || address -> 0x%x || bytes -> 0x%x\n",
@@ -64,35 +71,12 @@ main :: proc() {
 			load.Vaddr,
 			load.Filesz,
 		)
+		idx := load.Vaddr - RAM_OFFSET
+		copy(ram[idx:idx + load.Filesz], data[load.Offset:load.Offset + load.Filesz])
 	}
 }
 
-read_u16 :: proc(source: []byte, offset: i32, size: i32) -> u16 {
-	buf := make([]byte, size)
-	defer delete(buf)
-
-	for i in 0 ..< size {
-		buf[i] = source[i + offset]
-	}
-	return (cast(^u16)raw_data(buf))^
-}
-
-read_u32 :: proc(source: []byte, offset: i32, size: i32) -> u32 {
-	buf := make([]byte, size)
-	defer delete(buf)
-
-	for i in 0 ..< size {
-		buf[i] = source[i + offset]
-	}
-	return (cast(^u32)raw_data(buf))^
-}
-
-read_u64 :: proc(source: []byte, offset: i32, size: i32) -> u64 {
-	buf := make([]byte, size)
-	defer delete(buf)
-
-	for i in 0 ..< size {
-		buf[i] = source[i + offset]
-	}
-	return (cast(^u64)raw_data(buf))^
+read :: proc(source: []byte, offset: i32, size: i32, $T: typeid) -> T {
+	buf := source[offset:offset + size]
+	return (cast(^T)raw_data(buf))^
 }
