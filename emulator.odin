@@ -39,7 +39,7 @@ PLoad :: struct {
 	Filesz: u64,
 }
 
-CPU :: struct {
+Cpu :: struct {
 	registers: [32]u64,
 	pc:        u64,
 }
@@ -58,6 +58,15 @@ main :: proc() {
 	defer delete(ram)
 
 	load_ram(header, data, ram)
+
+	cpu := Cpu {
+		pc = header.Entry,
+	}
+	for {
+		idx := cpu.pc - RAM_OFFSET
+		ins := read(ram, i32(idx), 4, u32)
+		fmt.printf("%d\n", ins)
+	}
 }
 
 load_ram :: proc(header: Header, data: []byte, ram: []byte) {
