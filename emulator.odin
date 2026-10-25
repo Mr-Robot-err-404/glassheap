@@ -19,6 +19,12 @@ PROGRAM_HEADER :: enum i32 {
 	FILESZ = 32,
 }
 
+OPCODE :: enum u32 {
+	LUI     = 0x37,
+	AUIPC   = 0x17,
+	UNKNOWN = 0x00,
+}
+
 Segment_Type :: enum u32 {
 	PT_NULL    = 0,
 	PT_LOAD    = 1,
@@ -44,17 +50,16 @@ Cpu :: struct {
 }
 
 TypeU :: struct {
-	rd:     u32,
-	imm:    u32,
-	opcode: u32,
+	rd:  u32,
+	imm: u32,
 }
 
-auipc :: proc() {
-}
+TYPE_U_RD_SHIFT :: 7
+TYPE_U_IMM_SHIFT :: 12
 
-parse_type_u :: proc(ins: u32) -> TypeU {
-	return TypeU{}
-}
+MASK_5BIT :: u32(0x1F)
+MASK_20BIT :: u32(0xFFFFF)
+
 
 main :: proc() {
 	data, err := os.read_entire_file("build/glassheap.elf", context.allocator)
@@ -88,8 +93,30 @@ main :: proc() {
 			cpu.pc += 2
 		case:
 			fmt.printf("%08x: %08x\n", cpu.pc, ins)
+			decode_32_bit(ins, &cpu)
 			cpu.pc += 4
 		}
+	}
+}
+
+decode_32_bit :: proc(ins: u32, cpu: ^Cpu) {
+	opcode := OPCODE(ins & 0x7F)
+
+	switch opcode {
+	case .LUI:
+	case .AUIPC:
+		decoded := parse_type_u(ins)
+		cpu.registers[decoded.rd] = cpu.pc + u64(i32(decoded.imm) << 12)
+
+	case .UNKNOWN:
+		return
+	}
+}
+
+parse_type_u :: proc(ins: u32) -> TypeU {
+	return TypeU {
+		rd  = (ins >> TYPE_U_RD_SHIFT) & MASK_5BIT,
+		imm = (ins >> TYPE_U_IMM_SHIFT) & MASK_20BIT,
 	}
 }
 
