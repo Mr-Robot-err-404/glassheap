@@ -61,10 +61,15 @@ main :: proc() {
 	cpu := Cpu {
 		pc = header.Entry,
 	}
-	for {
+	n := 10
+
+	for n > 0 {
 		idx := cpu.pc - RAM_OFFSET
 		ins := read(ram, i32(idx), u32)
-		fmt.printf("%d\n", ins)
+		fmt.printf("%08x: %08x\n", cpu.pc, ins)
+
+		cpu.pc += 4
+		n -= 1
 	}
 }
 
