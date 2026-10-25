@@ -43,6 +43,19 @@ Cpu :: struct {
 	pc:        u64,
 }
 
+TypeU :: struct {
+	rd:     u32,
+	imm:    u32,
+	opcode: u32,
+}
+
+auipc :: proc() {
+}
+
+parse_type_u :: proc(ins: u32) -> TypeU {
+	return TypeU{}
+}
+
 main :: proc() {
 	data, err := os.read_entire_file("build/glassheap.elf", context.allocator)
 	if err != nil {
@@ -61,16 +74,27 @@ main :: proc() {
 	cpu := Cpu {
 		pc = header.Entry,
 	}
-	n := 10
 
+	n := 10
 	for n > 0 {
+		defer n -= 1
+
 		idx := cpu.pc - RAM_OFFSET
 		ins := read(ram, i32(idx), u32)
-		fmt.printf("%08x: %08x\n", cpu.pc, ins)
 
-		cpu.pc += 4
-		n -= 1
+		switch {
+		case !is_32_bit(ins):
+			fmt.printf("%08x: %04x\n", cpu.pc, u16(ins))
+			cpu.pc += 2
+		case:
+			fmt.printf("%08x: %08x\n", cpu.pc, ins)
+			cpu.pc += 4
+		}
 	}
+}
+
+is_32_bit :: proc(ins: u32) -> bool {
+	return ins & 0x3 == 0x3
 }
 
 load_ram :: proc(header: Header, data: []byte, ram: []byte) {
