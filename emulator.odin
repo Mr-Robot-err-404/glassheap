@@ -20,6 +20,7 @@ PROGRAM_HEADER :: enum i32 {
 OPCODE :: enum u32 {
 	LUI     = 0x37,
 	AUIPC   = 0x17,
+	ADDI    = 0x13,
 	UNKNOWN = 0x00,
 }
 
@@ -51,11 +52,17 @@ TypeU :: struct {
 	rd:  u32,
 	imm: u32,
 }
+TypeI :: struct {
+	rd:     u32,
+	funct3: u32,
+	rs1:    u32,
+	imm:    u32,
+}
 
 Decoded :: struct {
 	mnemonic: string,
 	name:     string,
-	imm:      u32,
+	imm:      i64,
 	pc:       u64,
 }
 
@@ -114,19 +121,39 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu) -> Decoded {
 
 	case .AUIPC:
 		decoded := parse_type_u(ins)
-		address := cpu.pc + u64(i64(decoded.imm << 12))
+		address := cpu.pc + u64(sign_extend(decoded.imm << 12, 20))
 		cpu.registers[decoded.rd] = address
 		return Decoded {
 			pc       = address,
 			mnemonic = "auipc",
 			name     = RegisterName[decoded.rd],
-			imm      = decoded.imm,
+			imm      = i64(decoded.imm),
 		}
+
+	case .ADDI:
+		decoded := parse_type_i(ins)
+		imm := sign_extend(decoded.imm, 12)
+		cpu.registers[decoded.rd] = cpu.registers[decoded.rs1] + u64(imm)
+		return Decoded{mnemonic = "addi", name = RegisterName[decoded.rd], imm = imm}
 
 	case .UNKNOWN:
 		return Decoded{}
 	}
 	return Decoded{}
+}
+
+sign_extend :: proc(n: u32, bits: u32) -> i64 {
+	shift := u32(64 - bits)
+	return i64(u64(n) << shift) >> shift
+}
+
+parse_type_i :: proc(ins: u32) -> TypeI {
+	return TypeI {
+		rd     = (ins >> TYPE_I_RD_SHIFT) & MASK_5BIT,
+		funct3 = (ins >> TYPE_I_FUNCT3_SHIFT) & MASK_3BIT,
+		rs1    = (ins >> TYPE_I_RS1_SHIFT) & MASK_5BIT,
+		imm    = (ins >> TYPE_I_IMM_SHIFT) & MASK_12BIT,
+	}
 }
 
 parse_type_u :: proc(ins: u32) -> TypeU {
@@ -177,7 +204,7 @@ trace_32_start :: proc(b: ^strings.Builder, pc: u64, ins: u32) {
 trace_mnemonic :: proc(b: ^strings.Builder, name: string) {
 	strings.write_string(b, fmt.tprintf("          %-24s", name))
 }
-trace_register :: proc(b: ^strings.Builder, name: string, n: u32) {
+trace_register :: proc(b: ^strings.Builder, name: string, n: i64) {
 	if len(name) == 0 {return}
 	strings.write_string(b, fmt.tprintf("%-23s", fmt.tprintf("%s,%d", name, n)))
 }
