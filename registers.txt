@@ -1,0 +1,50 @@
+============================
+RISC-V Register Conventions
+============================
+
+x0   zero   hardwired zero :: reads always 0, writes discarded
+x1   ra     return address :: where to jump back after a function call
+x2   sp     stack pointer  :: top of the current stack frame
+x3   gp     global pointer :: base address of global data
+x4   tp     thread pointer :: base address of thread-local storage
+x5   t0     temporary
+x6   t1     temporary
+x7   t2     temporary
+x8   s0/fp  saved register / frame pointer
+x9   s1     saved register
+x10  a0     function argument 1 / return value
+x11  a1     function argument 2 / return value
+x12  a2     function argument 3
+x13  a3     function argument 4
+x14  a4     function argument 5
+x15  a5     function argument 6
+x16  a6     function argument 7
+x17  a7     function argument 8
+x18  s2     saved register
+x19  s3     saved register
+x20  s4     saved register
+x21  s5     saved register
+x22  s6     saved register
+x23  s7     saved register
+x24  s8     saved register
+x25  s9     saved register
+x26  s10    saved register
+x27  s11    saved register
+x28  t3     temporary
+x29  t4     temporary
+x30  t5     temporary
+x31  t6     temporary
+
+
+Convention groups:
+
+  zero (x0)        constant zero, enforced by hardware
+  ra   (x1)        caller saves before making a call
+  sp   (x2)        always points to top of stack, callee maintains
+  gp   (x3)        set once at startup, never changed
+  tp   (x4)        set once at startup, never changed
+
+  t0-t6  (x5-x7, x28-x31)   temporaries, caller-saved, expect them to be clobbered
+  s0-s11 (x8-x9, x18-x27)   saved, callee must preserve across calls
+  a0-a7  (x10-x17)          function arguments in order, a0/a1 also hold return values
+

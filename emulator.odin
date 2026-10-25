@@ -2,9 +2,7 @@ package main
 
 import "core:fmt"
 import "core:os"
-
-RAM_SIZE :: 4 * 1024 * 1024 // 4MB
-RAM_OFFSET :: 0x80000000
+import "core:strings"
 
 ELF_HEADER :: enum i32 {
 	ENTRY = 24,
@@ -54,12 +52,12 @@ TypeU :: struct {
 	imm: u32,
 }
 
-TYPE_U_RD_SHIFT :: 7
-TYPE_U_IMM_SHIFT :: 12
-
-MASK_5BIT :: u32(0x1F)
-MASK_20BIT :: u32(0xFFFFF)
-
+Decoded :: struct {
+	mnemonic: string,
+	name:     string,
+	imm:      u32,
+	pc:       u64,
+}
 
 main :: proc() {
 	data, err := os.read_entire_file("build/glassheap.elf", context.allocator)
@@ -79,6 +77,9 @@ main :: proc() {
 	cpu := Cpu {
 		pc = header.Entry,
 	}
+	b := strings.Builder{}
+	strings.builder_init(&b)
+	defer strings.builder_destroy(&b)
 
 	n := 10
 	for n > 0 {
@@ -92,25 +93,40 @@ main :: proc() {
 			fmt.printf("%08x: %04x\n", cpu.pc, u16(ins))
 			cpu.pc += 2
 		case:
-			fmt.printf("%08x: %08x\n", cpu.pc, ins)
-			decode_32_bit(ins, &cpu)
+			trace(&b, cpu.pc, ins)
+			decoded := decode_32_bit(ins, &cpu)
+			trace(&b, decoded.mnemonic)
+			trace(&b, decoded.name, decoded.imm)
+			trace(&b, decoded.pc)
+			flush(&b)
+
 			cpu.pc += 4
 		}
 	}
 }
 
-decode_32_bit :: proc(ins: u32, cpu: ^Cpu) {
+decode_32_bit :: proc(ins: u32, cpu: ^Cpu) -> Decoded {
 	opcode := OPCODE(ins & 0x7F)
 
 	switch opcode {
 	case .LUI:
+		return Decoded{}
+
 	case .AUIPC:
 		decoded := parse_type_u(ins)
-		cpu.registers[decoded.rd] = cpu.pc + u64(i32(decoded.imm) << 12)
+		address := cpu.pc + u64(i64(decoded.imm << 12))
+		cpu.registers[decoded.rd] = address
+		return Decoded {
+			pc       = address,
+			mnemonic = "auipc",
+			name     = RegisterName[decoded.rd],
+			imm      = decoded.imm,
+		}
 
 	case .UNKNOWN:
-		return
+		return Decoded{}
 	}
+	return Decoded{}
 }
 
 parse_type_u :: proc(ins: u32) -> TypeU {
@@ -146,4 +162,33 @@ read :: proc(source: []byte, offset: i32, $T: typeid) -> T {
 	end := offset + size_of(T)
 	buf := source[offset:end]
 	return (cast(^T)raw_data(buf))^
+}
+
+trace :: proc {
+	trace_32_start,
+	trace_16,
+	trace_register,
+	trace_mnemonic,
+	trace_comment,
+}
+trace_32_start :: proc(b: ^strings.Builder, pc: u64, ins: u32) {
+	strings.write_string(b, fmt.tprintf("0x%08x:  %08x", pc, ins))
+}
+trace_mnemonic :: proc(b: ^strings.Builder, name: string) {
+	strings.write_string(b, fmt.tprintf("          %-24s", name))
+}
+trace_register :: proc(b: ^strings.Builder, name: string, n: u32) {
+	if len(name) == 0 {return}
+	strings.write_string(b, fmt.tprintf("%-23s", fmt.tprintf("%s,%d", name, n)))
+}
+trace_comment :: proc(b: ^strings.Builder, result: u64) {
+	if result == 0 {return}
+	strings.write_string(b, fmt.tprintf(" # 0x%08x", result))
+}
+trace_16 :: proc(b: ^strings.Builder, pc: u64, ins: u16) {
+	strings.write_string(b, fmt.tprintf("0x%08x:  %04x", pc, ins))
+}
+flush :: proc(b: ^strings.Builder) {
+	fmt.println(strings.to_string(b^))
+	strings.builder_reset(b)
 }
