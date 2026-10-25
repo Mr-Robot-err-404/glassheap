@@ -39,6 +39,10 @@ PLoad :: struct {
 	Filesz: u64,
 }
 
+CPU :: struct {
+	registers: [32]u64,
+	pc:        u64,
+}
 
 main :: proc() {
 	data, err := os.read_entire_file("build/glassheap.elf", context.allocator)
@@ -53,6 +57,10 @@ main :: proc() {
 	ram := make([]byte, RAM_SIZE)
 	defer delete(ram)
 
+	load_ram(header, data, ram)
+}
+
+load_ram :: proc(header: Header, data: []byte, ram: []byte) {
 	end := header.Phoff + (56 * u64(header.Phnum))
 	for i := header.Phoff; i < end; i += 56 {
 		buf := data[i:i + 56]
@@ -65,12 +73,6 @@ main :: proc() {
 			Vaddr  = read(buf, PROGRAM_VADDR.offset, PROGRAM_VADDR.size, u64),
 			Filesz = read(buf, PROGRAM_FILESZ.offset, PROGRAM_FILESZ.size, u64),
 		}
-		fmt.printf(
-			"offset -> 0x%x || address -> 0x%x || bytes -> 0x%x\n",
-			load.Offset,
-			load.Vaddr,
-			load.Filesz,
-		)
 		idx := load.Vaddr - RAM_OFFSET
 		copy(ram[idx:idx + load.Filesz], data[load.Offset:load.Offset + load.Filesz])
 	}
