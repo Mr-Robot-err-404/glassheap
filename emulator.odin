@@ -121,7 +121,8 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu) -> Decoded {
 
 	case .AUIPC:
 		decoded := parse_type_u(ins)
-		address := cpu.pc + u64(sign_extend(decoded.imm << 12, 20))
+		imm := sign_extend(decoded.imm << 12, 20)
+		address := cpu.pc + u64(imm)
 		cpu.registers[decoded.rd] = address
 		return Decoded {
 			pc       = address,
