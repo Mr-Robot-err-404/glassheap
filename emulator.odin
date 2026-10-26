@@ -60,10 +60,10 @@ TypeI :: struct {
 }
 
 Decoded :: struct {
-	mnemonic: string,
-	name:     string,
-	imm:      i64,
-	pc:       u64,
+	mnemonic:  string,
+	registers: [3]string,
+	imm:       i64,
+	pc:        u64,
 }
 
 main :: proc() {
@@ -103,7 +103,7 @@ main :: proc() {
 			trace(&b, cpu.pc, ins)
 			decoded := decode_32_bit(ins, &cpu)
 			trace(&b, decoded.mnemonic)
-			trace(&b, decoded.name, decoded.imm)
+			trace(&b, decoded.registers, decoded.imm)
 			trace(&b, decoded.pc)
 			flush(&b)
 
@@ -120,22 +120,17 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu) -> Decoded {
 		return Decoded{}
 
 	case .AUIPC:
-		decoded := parse_type_u(ins)
-		imm := sign_extend(decoded.imm << 12, 20)
+		parsed := parse_type_u(ins)
+		imm := sign_extend(parsed.imm << 12, 20)
 		address := cpu.pc + u64(imm)
-		cpu.registers[decoded.rd] = address
-		return Decoded {
-			pc       = address,
-			mnemonic = "auipc",
-			name     = RegisterName[decoded.rd],
-			imm      = i64(decoded.imm),
-		}
+		cpu.registers[parsed.rd] = address
+		return decoded("auipc", RegisterName[parsed.rd], i64(parsed.imm), address)
 
 	case .ADDI:
-		decoded := parse_type_i(ins)
-		imm := sign_extend(decoded.imm, 12)
-		cpu.registers[decoded.rd] = cpu.registers[decoded.rs1] + u64(imm)
-		return Decoded{mnemonic = "addi", name = RegisterName[decoded.rd], imm = imm}
+		parsed := parse_type_i(ins)
+		imm := sign_extend(parsed.imm, 12)
+		cpu.registers[parsed.rd] = cpu.registers[parsed.rs1] + u64(imm)
+		return decoded("addi", RegisterName[parsed.rd], RegisterName[parsed.rs1], imm)
 
 	case .UNKNOWN:
 		return Decoded{}
@@ -192,10 +187,32 @@ read :: proc(source: []byte, offset: i32, $T: typeid) -> T {
 	return (cast(^T)raw_data(buf))^
 }
 
+decoded :: proc {
+	decoded_1,
+	decoded_2,
+}
+decoded_1 :: proc(mnemonic: string, r0: string, imm: i64, pc: u64 = 0) -> Decoded {
+	return Decoded {
+		mnemonic  = mnemonic,
+		registers = {r0, "", ""},
+		imm       = imm,
+		pc        = pc,
+	}
+}
+decoded_2 :: proc(mnemonic: string, r0: string, r1: string, imm: i64, pc: u64 = 0) -> Decoded {
+	return Decoded {
+		mnemonic  = mnemonic,
+		registers = {r0, r1, ""},
+		imm       = imm,
+		pc        = pc,
+	}
+}
+
+
 trace :: proc {
 	trace_32_start,
 	trace_16,
-	trace_register,
+	trace_registers,
 	trace_mnemonic,
 	trace_comment,
 }
@@ -205,9 +222,15 @@ trace_32_start :: proc(b: ^strings.Builder, pc: u64, ins: u32) {
 trace_mnemonic :: proc(b: ^strings.Builder, name: string) {
 	strings.write_string(b, fmt.tprintf("          %-24s", name))
 }
-trace_register :: proc(b: ^strings.Builder, name: string, n: i64) {
-	if len(name) == 0 {return}
-	strings.write_string(b, fmt.tprintf("%-23s", fmt.tprintf("%s,%d", name, n)))
+trace_registers :: proc(b: ^strings.Builder, names: [3]string, n: i64) {
+	if len(names[0]) == 0 {return}
+	s := names[0]
+	for i in 1 ..< 2 {
+		name := names[i]
+		if len(name) == 0 {break}
+		s = fmt.tprintf("%s,%s", s, name)
+	}
+	strings.write_string(b, fmt.tprintf("%-23s", fmt.tprintf("%s,%d", s, n)))
 }
 trace_comment :: proc(b: ^strings.Builder, result: u64) {
 	if result == 0 {return}
