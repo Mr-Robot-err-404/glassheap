@@ -21,6 +21,7 @@ OPCODE :: enum u32 {
 	LUI     = 0x37,
 	AUIPC   = 0x17,
 	ADDI    = 0x13,
+	JAL     = 0x6f,
 	UNKNOWN = 0x00,
 }
 
@@ -58,12 +59,17 @@ TypeI :: struct {
 	rs1:    u32,
 	imm:    u32,
 }
+TypeJ :: struct {
+	rd:  u32,
+	imm: u32,
+}
 
 Decoded :: struct {
 	mnemonic:  string,
 	registers: [3]string,
 	imm:       i64,
-	pc:        u64,
+	address:   u64,
+	jump:      bool,
 }
 
 main :: proc() {
@@ -104,9 +110,10 @@ main :: proc() {
 			decoded := decode_32_bit(ins, &cpu)
 			trace(&b, decoded.mnemonic)
 			trace(&b, decoded.registers, decoded.imm)
-			trace(&b, decoded.pc)
+			trace(&b, decoded.address)
 			flush(&b)
 
+			if decoded.jump {continue}
 			cpu.pc += 4
 		}
 	}
@@ -132,6 +139,13 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu) -> Decoded {
 		cpu.registers[parsed.rd] = cpu.registers[parsed.rs1] + u64(imm)
 		return decoded("addi", RegisterName[parsed.rd], RegisterName[parsed.rs1], imm)
 
+	case .JAL:
+		parsed := parse_type_j(ins)
+		imm := sign_extend(parsed.imm, 20)
+		cpu.registers[parsed.rd] = cpu.pc + 4
+		cpu.pc += u64(imm)
+		return decoded("jal", RegisterName[parsed.rd], imm, cpu.pc, true)
+
 	case .UNKNOWN:
 		return Decoded{}
 	}
@@ -141,6 +155,18 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu) -> Decoded {
 sign_extend :: proc(n: u32, bits: u32) -> i64 {
 	shift := u32(64 - bits)
 	return i64(u64(n) << shift) >> shift
+}
+
+parse_type_j :: proc(ins: u32) -> TypeJ {
+	imm_20 := (ins >> 31) & MASK_1BIT
+	imm_10_1 := (ins >> 21) & MASK_10BIT
+	imm_11 := (ins >> 20) & MASK_1BIT
+	imm_19_12 := (ins >> 12) & MASK_8BIT
+
+	return TypeJ {
+		rd  = (ins >> TYPE_J_RD_SHIFT) & MASK_5BIT,
+		imm = (imm_20 << 20) | (imm_10_1 << 1) | (imm_11 << 11) | (imm_19_12 << 12),
+	}
 }
 
 parse_type_i :: proc(ins: u32) -> TypeI {
@@ -191,20 +217,35 @@ decoded :: proc {
 	decoded_1,
 	decoded_2,
 }
-decoded_1 :: proc(mnemonic: string, r0: string, imm: i64, pc: u64 = 0) -> Decoded {
+decoded_1 :: proc(
+	mnemonic: string,
+	r0: string,
+	imm: i64,
+	address: u64 = 0,
+	jump: bool = false,
+) -> Decoded {
 	return Decoded {
 		mnemonic  = mnemonic,
 		registers = {r0, "", ""},
 		imm       = imm,
-		pc        = pc,
+		address   = address,
+		jump      = jump,
 	}
 }
-decoded_2 :: proc(mnemonic: string, r0: string, r1: string, imm: i64, pc: u64 = 0) -> Decoded {
+decoded_2 :: proc(
+	mnemonic: string,
+	r0: string,
+	r1: string,
+	imm: i64,
+	address: u64 = 0,
+	jump: bool = false,
+) -> Decoded {
 	return Decoded {
 		mnemonic  = mnemonic,
 		registers = {r0, r1, ""},
 		imm       = imm,
-		pc        = pc,
+		address   = address,
+		jump      = jump,
 	}
 }
 
