@@ -22,7 +22,13 @@ $(BUILD)/boot.o: boot.s | $(BUILD)
 run: $(BUILD)/glassheap.elf
 	qemu-system-riscv64 -machine virt -nographic -bios none -kernel $(BUILD)/glassheap.elf
 
+trace: $(BUILD)/glassheap.elf
+	odin run . 2>/dev/null
+
+guest: $(BUILD)/glassheap.elf
+	odin run . 2>&1 >/dev/null
+
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all run clean
+.PHONY: all run trace guest clean

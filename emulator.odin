@@ -21,6 +21,7 @@ OPCODE :: enum u32 {
 	LUI     = 0x37,
 	AUIPC   = 0x17,
 	ADDI    = 0x13,
+	SB      = 0x23,
 	JAL     = 0x6f,
 	UNKNOWN = 0x00,
 }
@@ -63,6 +64,13 @@ TypeJ :: struct {
 	rd:  u32,
 	imm: u32,
 }
+TypeS :: struct {
+	funct3: u32,
+	rs1:    u32,
+	rs2:    u32,
+	imm:    u32,
+}
+
 
 Decoded :: struct {
 	mnemonic:  string,
@@ -70,6 +78,7 @@ Decoded :: struct {
 	imm:       i64,
 	address:   u64,
 	jump:      bool,
+	syscon:    bool,
 }
 
 main :: proc() {
@@ -107,28 +116,35 @@ main :: proc() {
 			cpu.pc += 2
 		case:
 			trace(&b, cpu.pc, ins)
-			decoded := decode_32_bit(ins, &cpu)
+			decoded := decode_32_bit(ins, &cpu, ram)
 			trace(&b, decoded.mnemonic)
 			trace(&b, decoded.registers, decoded.imm)
 			trace(&b, decoded.address)
 			flush(&b)
 
 			if decoded.jump {continue}
+			if decoded.syscon {
+				fmt.println("received syscon")
+				os.exit(0)
+			}
 			cpu.pc += 4
 		}
 	}
 }
 
-decode_32_bit :: proc(ins: u32, cpu: ^Cpu) -> Decoded {
+decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 	opcode := OPCODE(ins & 0x7F)
 
 	switch opcode {
 	case .LUI:
-		return Decoded{}
+		parsed := parse_type_u(ins)
+		address := u64(sign_extend(parsed.imm << 12, 32))
+		cpu.registers[parsed.rd] = address
+		return decoded("lui", RegisterName[parsed.rd], i64(parsed.imm), address)
 
 	case .AUIPC:
 		parsed := parse_type_u(ins)
-		imm := sign_extend(parsed.imm << 12, 20)
+		imm := sign_extend(parsed.imm << 12, 32)
 		address := cpu.pc + u64(imm)
 		cpu.registers[parsed.rd] = address
 		return decoded("auipc", RegisterName[parsed.rd], i64(parsed.imm), address)
@@ -146,15 +162,47 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu) -> Decoded {
 		cpu.pc += u64(imm)
 		return decoded("jal", RegisterName[parsed.rd], imm, cpu.pc, true)
 
+	case .SB:
+		parsed := parse_type_s(ins)
+		imm := sign_extend(parsed.imm, 12)
+		address := cpu.registers[parsed.rs1] + u64(imm)
+		value := u8(cpu.registers[parsed.rs2])
+
+		switch address {
+		case UART:
+			fmt.eprintf("%c", value)
+		case SYSCON:
+			return Decoded{syscon = true}
+		case:
+			write_to_memory(ram, address, value)
+		}
+		return decoded("sb", RegisterName[parsed.rs2], RegisterName[parsed.rs1], imm)
+
 	case .UNKNOWN:
 		return Decoded{}
 	}
 	return Decoded{}
 }
 
+write_to_memory :: proc(ram: []byte, address: u64, value: u8) {
+	idx := address - RAM_OFFSET
+	ram[idx] = value
+}
+
 sign_extend :: proc(n: u32, bits: u32) -> i64 {
 	shift := u32(64 - bits)
 	return i64(u64(n) << shift) >> shift
+}
+
+parse_type_s :: proc(ins: u32) -> TypeS {
+	imm_5 := (ins >> 25) & MASK_7BIT
+	imm := (ins >> 7) & MASK_5BIT
+	return TypeS {
+		funct3 = (ins >> TYPE_S_FUNCT3_SHIFT) & MASK_3BIT,
+		rs1    = (ins >> TYPE_S_RS1_SHIFT) & MASK_5BIT,
+		rs2    = (ins >> TYPE_S_RS2_SHIFT) & MASK_5BIT,
+		imm    = (imm_5 << 5) | imm,
+	}
 }
 
 parse_type_j :: proc(ins: u32) -> TypeJ {
