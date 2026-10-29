@@ -103,7 +103,7 @@ main :: proc() {
 	strings.builder_init(&b)
 	defer strings.builder_destroy(&b)
 
-	n := 10
+	n := 25
 	for n > 0 {
 		defer n -= 1
 
@@ -132,8 +132,11 @@ main :: proc() {
 	}
 }
 
+decompress_16_bit :: proc(ins: u16) -> u32 {
+}
+
 decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
-	opcode := OPCODE(ins & 0x7F)
+	opcode := OPCODE(ins & MASK_7BIT)
 
 	switch opcode {
 	case .LUI:
