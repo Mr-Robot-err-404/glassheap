@@ -132,8 +132,6 @@ main :: proc() {
 	}
 }
 
-decompress_16_bit :: proc(ins: u16) -> u32 {
-}
 
 decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 	opcode := OPCODE(ins & MASK_7BIT)

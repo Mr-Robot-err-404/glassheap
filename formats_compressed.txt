@@ -3,16 +3,16 @@ Compressed 16-bit Zca instruction formats
 ===========================================================================
 
 Format  Meaning               15 14 13 | 12   | 11 10 | 9 8 7  | 6 5  | 4 3 2 | 1 0
----------------------------------------------------------------------------
-CR      Register              [  funct4       | rd/rs1        | rs2          | op ]
-CI      Immediate             [ funct3 | imm  | rd/rs1        | imm          | op ]
-CSS     Stack-relative Store  [ funct3 |      imm             | rs2          | op ]
-CIW     Wide Immediate        [ funct3 |          imm                 | rd'  | op ]
-CL      Load                  [ funct3 | imm  | rs1'          | imm   | rd'  | op ]
-CS      Store                 [ funct3 | imm  | rs1'          | imm   | rs2' | op ]
-CA      Arithmetic            [        funct6 | rd'/rs1'      | funct2| rs2' | op ]
-CB      Branch/Arithmetic     [ funct3 |    offset    | rd'/rs1'  |  offset  | op ]
-CJ      Jump                  [ funct3 |              jump target            | op ]
+------------------------------------------------------------------------------------
+CR      Register              [  funct4       | rd/rs1         | rs2          | op ]
+CI      Immediate             [ funct3 | imm  | rd/rs1         | imm          | op ]
+CSS     Stack-relative Store  [ funct3 |      imm              | rs2          | op ]
+CIW     Wide Immediate        [ funct3 |          imm                  | rd'  | op ]
+CL      Load                  [ funct3 | imm  | rs1'           | imm   | rd'  | op ]
+CS      Store                 [ funct3 | imm  | rs1'           | imm   | rs2' | op ]
+CA      Arithmetic            [        funct6 | rd'/rs1'       | funct2| rs2' | op ]
+CB      Branch/Arithmetic     [ funct3 |    offset    | rd'/rs1'   |  offset  | op ]
+CJ      Jump                  [ funct3 |              jump target             | op ]
 
 ===========================================================================
 Register encoding for primed fields (rd', rs1', rs2')
