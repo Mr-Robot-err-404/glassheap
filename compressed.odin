@@ -82,7 +82,7 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 		case .LD:
 		case .SW:
 		case .SD:
-			// imm  = ins[6:5]<<6 | ins[12:10]<<3
+			// CS :: imm = ins[6:5]<<6 | ins[12:10]<<3
 			imm := u32((ins >> 5) & BITS_2) << 6 | u32((ins >> 10) & BITS_3) << 3
 			rs1 := u32(ins >> 7 & BITS_3) + 8
 			rs2 := u32(ins >> 2 & BITS_3) + 8
@@ -91,6 +91,7 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 	case .Q1:
 		switch Q1_INS(funct3) {
 		case .ADDI:
+			// CI :: imm = ins[12]<<5 | ins[6:2]
 			rd := (ins >> 7) & BITS_5
 			imm := ((ins >> 12) & BITS_1) << 5 | ((ins >> 2) & BITS_5)
 			imm_32 := u32(sign_extend(u32(imm), 6))
@@ -98,6 +99,11 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 
 		case .JAL:
 		case .LI:
+			// CI :: ins[12] << 5 | ins[6:2]
+			rd := u32((ins >> 7) & BITS_5)
+			imm := u32((ins >> 12) & BITS_1) << 5 | u32((ins >> 2) & BITS_5)
+			return assemble_type_i(u32(sign_extend(imm, 6)), 0, rd, .ADDI, I_Funct3.ADDI)
+
 		case .LUI:
 		case .MISC_ALU:
 		case .J:
@@ -110,6 +116,7 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 		case .LWSP:
 		case .LDSP:
 		case .MISC:
+			// CR
 			rs1 := u32((ins >> 7) & BITS_5)
 			rs2 := u32((ins >> 2) & BITS_5)
 			bit12 := ins >> 12 & BITS_1
@@ -125,7 +132,7 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 			}
 		case .SWSP:
 		case .SDSP:
-			// imm = ins[9:7]<<6 | ins[12:10]<<3
+			// CSS :: imm = ins[9:7]<<6 | ins[12:10]<<3
 			imm := u32((ins >> 7) & BITS_3) << 6 | u32((ins >> 10) & BITS_3) << 3
 			rs2 := u32((ins >> 2) & BITS_5)
 			return assemble_type_s(imm, 0x2, rs2, .SB, .SD)
