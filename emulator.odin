@@ -23,6 +23,7 @@ OPCODE :: enum u32 {
 	ADDI    = 0x13,
 	SB      = 0x23,
 	JAL     = 0x6f,
+	JALR    = 0x67,
 	UNKNOWN = 0x00,
 }
 
@@ -175,6 +176,20 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 		cpu.pc += u64(imm)
 		return decoded("jal", RegisterName[parsed.rd], imm, cpu.pc, true)
 
+	case .JALR:
+		parsed := parse_type_i(ins)
+		imm := sign_extend(parsed.imm, 12)
+		cpu.registers[parsed.rd] = cpu.pc + 4
+		cpu.pc = ensure_even(cpu.registers[parsed.rs1] + u64(imm))
+		return decoded(
+			"jalr",
+			RegisterName[parsed.rd],
+			RegisterName[parsed.rs1],
+			imm,
+			cpu.pc,
+			true,
+		)
+
 	case .SB:
 		parsed := parse_type_s(ins)
 		funct3 := S_Funct3(parsed.funct3)
@@ -285,6 +300,10 @@ load_ram :: proc(header: Header, data: []byte, ram: []byte) {
 		idx := load.Vaddr - RAM_OFFSET
 		copy(ram[idx:idx + load.Filesz], data[load.Offset:load.Offset + load.Filesz])
 	}
+}
+
+ensure_even :: proc(bits: u64) -> u64 {
+	return bits & ~u64(1)
 }
 
 read :: proc(source: []byte, offset: i32, $T: typeid) -> T {

@@ -34,6 +34,14 @@ Q2_INS :: enum u16 {
 	SDSP = 0x7,
 }
 
+Q2_MISC :: enum {
+	JR,
+	MV,
+	EBREAK,
+	JALR,
+	ADD,
+}
+
 BITS_1 :: u16(0x1)
 BITS_2 :: u16(0x3)
 BITS_3 :: u16(0x7)
@@ -60,6 +68,7 @@ assemble_type_i :: proc(imm, rs1, rd: u32, op: OPCODE, funct3: I_Funct3) -> u32 
 		(u32(op) & MASK_7BIT) \
 	)
 }
+
 
 decompress_16_bit :: proc(ins: u16) -> u32 {
 	op := Quadrant(ins & 0x3)
@@ -101,9 +110,38 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 		case .LWSP:
 		case .LDSP:
 		case .MISC:
+			rs1 := u32((ins >> 7) & BITS_5)
+			rs2 := u32((ins >> 2) & BITS_5)
+			bit12 := ins >> 12 & BITS_1
+
+			switch misc(rs1, rs2, bit12) {
+			case .JR:
+				return assemble_type_i(0, rs1, 0, .JALR, .ADDI)
+			case .MV:
+			case .EBREAK:
+			case .JALR:
+				return assemble_type_i(0, rs1, 1, .JALR, .ADDI)
+			case .ADD:
+			}
 		case .SWSP:
 		case .SDSP:
+			// imm = ins[9:7]<<6 | ins[12:10]<<3
+			imm := u32((ins >> 7) & BITS_3) << 6 | u32((ins >> 10) & BITS_3) << 3
+			rs2 := u32((ins >> 2) & BITS_5)
+			return assemble_type_s(imm, 0x2, rs2, .SB, .SD)
 		}
 	}
 	return 0
+}
+
+misc :: proc(rs1, rs2: u32, bit12: u16) -> Q2_MISC {
+	if bit12 == 0 {
+		if rs2 == 0 {return .JR}
+		return .MV
+	}
+	if rs2 == 0 {
+		if rs1 == 0 {return .EBREAK}
+		return .JALR
+	}
+	return .ADD
 }
