@@ -35,15 +35,29 @@ Q2_INS :: enum u16 {
 }
 
 BITS_1 :: u16(0x1)
+BITS_2 :: u16(0x3)
+BITS_3 :: u16(0x7)
 BITS_4 :: u16(0xf)
+BITS_5 :: u16(0x1f)
 
-assemble_type_i :: proc(imm, rs1, funct3, rd, op: u32) -> u32 {
+assemble_type_s :: proc(imm, rs1, rs2: u32, op: OPCODE, funct3: S_Funct3) -> u32 {
+	return(
+		((imm >> 5) & MASK_7BIT) << 25 |
+		(rs2 & MASK_5BIT) << 20 |
+		(rs1 & MASK_5BIT) << 15 |
+		(u32(funct3) & MASK_3BIT) << 12 |
+		(imm & MASK_5BIT) << 7 |
+		u32(op) & MASK_7BIT \
+	)
+}
+
+assemble_type_i :: proc(imm, rs1, rd: u32, op: OPCODE, funct3: I_Funct3) -> u32 {
 	return(
 		((imm & MASK_12BIT) << 20) |
 		((rs1 & MASK_5BIT) << 15) |
-		((funct3 & MASK_3BIT) << 12) |
+		((u32(funct3) & MASK_3BIT) << 12) |
 		((rd & MASK_5BIT) << 7) |
-		(op & MASK_7BIT) \
+		(u32(op) & MASK_7BIT) \
 	)
 }
 
@@ -59,16 +73,19 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 		case .LD:
 		case .SW:
 		case .SD:
+			// imm  = ins[6:5]<<6 | ins[12:10]<<3
+			imm := u32((ins >> 5) & BITS_2) << 6 | u32((ins >> 10) & BITS_3) << 3
+			rs1 := u32(ins >> 7 & BITS_3) + 8
+			rs2 := u32(ins >> 2 & BITS_3) + 8
+			return assemble_type_s(imm, rs1, rs2, .SB, .SD)
 		}
 	case .Q1:
 		switch Q1_INS(funct3) {
 		case .ADDI:
-			//rd/rs2 = ins[11:7]     (full 5-bit, not primed)
-			//imm    = ins[12]<<5 | ins[6:2]
-			//note  : sign-extended from 6 bits. rd != 0, imm != 0
-			//maps  : addi rd, rd, imm
-			//32bit : ADDI rd, rd, imm
-			imm := ((ins >> 12) & BITS_1) | ((ins >> 2) & BITS_4)
+			rd := (ins >> 7) & BITS_5
+			imm := ((ins >> 12) & BITS_1) << 5 | ((ins >> 2) & BITS_5)
+			imm_32 := u32(sign_extend(u32(imm), 6))
+			return assemble_type_i(imm_32, u32(rd), u32(rd), .ADDI, .ADDI)
 
 		case .JAL:
 		case .LI:

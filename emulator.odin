@@ -112,7 +112,19 @@ main :: proc() {
 
 		switch {
 		case !is_32_bit(ins):
-			fmt.printf("%08x: %04x\n", cpu.pc, u16(ins))
+			trace(&b, cpu.pc, u16(ins))
+			ins = decompress_16_bit(u16(ins))
+			decoded := decode_32_bit(ins, &cpu, ram)
+			trace(&b, decoded.mnemonic)
+			trace(&b, decoded.registers, decoded.imm)
+			trace(&b, decoded.address)
+			flush(&b)
+
+			if decoded.jump {continue}
+			if decoded.syscon {
+				fmt.println("received syscon")
+				os.exit(0)
+			}
 			cpu.pc += 2
 		case:
 			trace(&b, cpu.pc, ins)
@@ -165,19 +177,30 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 
 	case .SB:
 		parsed := parse_type_s(ins)
+		funct3 := S_Funct3(parsed.funct3)
 		imm := sign_extend(parsed.imm, 12)
 		address := cpu.registers[parsed.rs1] + u64(imm)
-		value := u8(cpu.registers[parsed.rs2])
 
-		switch address {
-		case UART:
-			fmt.eprintf("%c", value)
-		case SYSCON:
-			return Decoded{syscon = true}
-		case:
-			write_to_memory(ram, address, value)
+		if address == SYSCON {return Decoded{syscon = true}}
+
+		switch funct3 {
+		case .SB:
+			value := u8(cpu.registers[parsed.rs2])
+			switch address {
+			case UART:
+				fmt.eprintf("%c", value)
+			case:
+				write_to_memory(ram, address, value)
+			}
+			return decoded("sb", RegisterName[parsed.rs2], RegisterName[parsed.rs1], imm)
+
+		case .SD:
+			write_u64_to_memory(ram, address, cpu.registers[parsed.rs2])
+			return decoded("sd", RegisterName[parsed.rs2], RegisterName[parsed.rs1], imm)
+
+		case .SH:
+		case .SW:
 		}
-		return decoded("sb", RegisterName[parsed.rs2], RegisterName[parsed.rs1], imm)
 
 	case .UNKNOWN:
 		return Decoded{}
@@ -188,6 +211,14 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 write_to_memory :: proc(ram: []byte, address: u64, value: u8) {
 	idx := address - RAM_OFFSET
 	ram[idx] = value
+}
+
+write_u64_to_memory :: proc(ram: []byte, address: u64, value: u64) {
+	idx := address - RAM_OFFSET
+	for i: u64 = 0; i < 8; i += 1 {
+		n := i * 8
+		ram[idx + i] = u8(value >> n)
+	}
 }
 
 sign_extend :: proc(n: u32, bits: u32) -> i64 {
@@ -327,7 +358,7 @@ trace_comment :: proc(b: ^strings.Builder, result: u64) {
 	strings.write_string(b, fmt.tprintf(" # 0x%08x", result))
 }
 trace_16 :: proc(b: ^strings.Builder, pc: u64, ins: u16) {
-	strings.write_string(b, fmt.tprintf("0x%08x:  %04x", pc, ins))
+	strings.write_string(b, fmt.tprintf("0x%08x:  %04x    ", pc, ins))
 }
 flush :: proc(b: ^strings.Builder) {
 	fmt.println(strings.to_string(b^))

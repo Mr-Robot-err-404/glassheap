@@ -30,6 +30,60 @@ MASK_10BIT :: u32(0x3FF)
 MASK_12BIT :: u32(0xFFF)
 MASK_20BIT :: u32(0xFFFFF)
 
+I_Funct3 :: enum u32 {
+	ADDI  = 0x0,
+	SLTI  = 0x2,
+	SLTIU = 0x3,
+	XORI  = 0x4,
+	ORI   = 0x6,
+	ANDI  = 0x7,
+	SLLI  = 0x1,
+	SRLI  = 0x5,
+}
+
+B_Funct3 :: enum u32 {
+	BEQ  = 0x0,
+	BNE  = 0x1,
+	BLT  = 0x4,
+	BGE  = 0x5,
+	BLTU = 0x6,
+	BGEU = 0x7,
+}
+
+Load_Funct3 :: enum u32 {
+	LB  = 0x0,
+	LH  = 0x1,
+	LW  = 0x2,
+	LD  = 0x3,
+	LBU = 0x4,
+	LHU = 0x5,
+	LWU = 0x6,
+}
+
+S_Funct3 :: enum u32 {
+	SB = 0x0,
+	SH = 0x1,
+	SW = 0x2,
+	SD = 0x3,
+}
+
+R_Funct3 :: enum u32 {
+	ADD  = 0x0,
+	SLL  = 0x1,
+	SLT  = 0x2,
+	SLTU = 0x3,
+	XOR  = 0x4,
+	SRL  = 0x5,
+	OR   = 0x6,
+	AND  = 0x7,
+}
+
+R_Funct7 :: enum u32 {
+	DEFAULT = 0x00,
+	SUB     = 0x20,
+	SRA     = 0x20,
+}
+
 RegisterName := [32]string {
 	"zero",
 	"ra",

@@ -1,24 +1,268 @@
-===========================================================================
-Compressed 16-bit Zca instruction formats
-===========================================================================
-
-Format  Meaning               15 14 13 | 12   | 11 10 | 9 8 7  | 6 5  | 4 3 2 | 1 0
-------------------------------------------------------------------------------------
-CR      Register              [  funct4       | rd/rs1         | rs2          | op ]
-CI      Immediate             [ funct3 | imm  | rd/rs1         | imm          | op ]
-CSS     Stack-relative Store  [ funct3 |      imm              | rs2          | op ]
-CIW     Wide Immediate        [ funct3 |          imm                  | rd'  | op ]
-CL      Load                  [ funct3 | imm  | rs1'           | imm   | rd'  | op ]
-CS      Store                 [ funct3 | imm  | rs1'           | imm   | rs2' | op ]
-CA      Arithmetic            [        funct6 | rd'/rs1'       | funct2| rs2' | op ]
-CB      Branch/Arithmetic     [ funct3 |    offset    | rd'/rs1'   |  offset  | op ]
-CJ      Jump                  [ funct3 |              jump target             | op ]
-
-===========================================================================
-Register encoding for primed fields (rd', rs1', rs2')
-used in CIW, CL, CS, CA, CB formats.
+Table 32. Compressed 16-bit Zca instruction formats
 ===========================================================================
 
-Zca Register Number  | 000 | 001 | 010 | 011 | 100 | 101 | 110 | 111 |
-Integer Register     |  x8 |  x9 | x10 | x11 | x12 | x13 | x14 | x15 |
-ABI Name             |  s0 |  s1 |  a0 |  a1 |  a2 |  a3 |  a4 |  a5 |
+FIELD POSITIONS — these never change, regardless of format
+---------------------------------------------------------------------------
+  op          ins[1:0]     2 bits   quadrant selector
+  funct3      ins[15:13]   3 bits   instruction selector within quadrant
+  funct4      ins[15:12]   4 bits
+  funct6      ins[15:10]   6 bits
+  funct2      ins[6:5]     2 bits
+  rd / rs1    ins[11:7]    5 bits   full range x0-x31
+  rs2         ins[6:2]     5 bits   full range x0-x31
+  rd' / rs1'  ins[9:7]     3 bits   PRIMED, x8-x15 only
+  rs2'        ins[4:2]     3 bits   PRIMED, x8-x15 only
+
+primed decode: actual_register = encoded + 8
+  000=x8(s0)   001=x9(s1)   010=x10(a0)  011=x11(a1)
+  100=x12(a2)  101=x13(a3)  110=x14(a4)  111=x15(a5)
+
+---------------------------------------------------------------------------
+WHICH FIELDS EACH FORMAT USES
+---------------------------------------------------------------------------
+  CR    Register              funct4, rd/rs1, rs2
+  CI    Immediate             funct3, rd/rs1, imm
+  CSS   Stack-relative Store  funct3, rs2, imm
+  CIW   Wide Immediate        funct3, rd', imm
+  CL    Load                  funct3, rd', rs1', imm
+  CS    Store                 funct3, rs1', rs2', imm
+  CA    Arithmetic            funct6, rd'/rs1', funct2, rs2'
+  CB    Branch/Arithmetic     funct3, rd'/rs1', offset
+  CJ    Jump                  funct3, jump target
+
+imm and offset fields are ALWAYS split across non-contiguous bits and
+scrambled. the format tells you nothing useful about them. use the
+per-instruction entries below to reassemble.
+
+===========================================================================
+INSTRUCTION REFERENCE :: per instruction bit extraction + 32-bit mapping
+===========================================================================
+Notation: bit[n] = single bit, bit[n:m] = field from n down to m (inclusive)
+primed register: actual_reg = encoded_3bit + 8
+
+---------------------------------------------------------------------------
+QUADRANT 0 (op = 0b00)
+---------------------------------------------------------------------------
+
+C.ADDI4SPN  funct3=000  format=CIW
+  rd'  = ins[4:2]        (primed, add 8)
+  imm  = ins[10:7]<<6 | ins[12:11]<<4 | ins[5]<<3 | ins[6]<<2
+  note : zero-extended, never zero
+  maps : addi rd', sp, imm
+  32bit: ADDI rd, x2, imm
+
+C.LW        funct3=010  format=CL
+  rd'  = ins[4:2]        (primed, add 8)
+  rs1' = ins[9:7]        (primed, add 8)
+  imm  = ins[5]<<6 | ins[12:10]<<3 | ins[6]<<2
+  note : zero-extended, word offset
+  maps : lw rd', imm(rs1')
+  32bit: LW rd, imm(rs1)
+
+C.LD        funct3=011  format=CL  (RV64 only)
+  rd'  = ins[4:2]        (primed, add 8)
+  rs1' = ins[9:7]        (primed, add 8)
+  imm  = ins[6:5]<<6 | ins[12:10]<<3
+  note : zero-extended, doubleword offset
+  maps : ld rd', imm(rs1')
+  32bit: LD rd, imm(rs1)
+
+C.SW        funct3=110  format=CS
+  rs2' = ins[4:2]        (primed, add 8)
+  rs1' = ins[9:7]        (primed, add 8)
+  imm  = ins[5]<<6 | ins[12:10]<<3 | ins[6]<<2
+  note : zero-extended, word offset
+  maps : sw rs2', imm(rs1')
+  32bit: SW rs2, imm(rs1)
+
+C.SD        funct3=111  format=CS  (RV64 only)
+  rs2' = ins[4:2]        (primed, add 8)
+  rs1' = ins[9:7]        (primed, add 8)
+  imm  = ins[6:5]<<6 | ins[12:10]<<3
+  note : zero-extended, doubleword offset
+  maps : sd rs2', imm(rs1')
+  32bit: SD rs2, imm(rs1)
+
+---------------------------------------------------------------------------
+QUADRANT 1 (op = 0b01)
+---------------------------------------------------------------------------
+
+C.NOP       funct3=000  rd=0  imm=0
+  no fields — canonical nop
+  32bit: ADDI x0, x0, 0
+
+C.ADDI      funct3=000  format=CI
+  rd/rs1 = ins[11:7]     (full 5-bit, not primed)
+  imm    = ins[12]<<5 | ins[6:2]
+  note  : sign-extended from 6 bits. rd != 0, imm != 0
+  maps  : addi rd, rd, imm
+  32bit : ADDI rd, rd, imm
+
+C.ADDIW     funct3=001  format=CI  (RV64 only)
+  rd/rs1 = ins[11:7]     (full 5-bit)
+  imm    = ins[12]<<5 | ins[6:2]
+  note  : sign-extended from 6 bits. rd != 0
+  maps  : addiw rd, rd, imm
+  32bit : ADDIW rd, rd, imm
+
+C.LI        funct3=010  format=CI
+  rd     = ins[11:7]     (full 5-bit)
+  imm    = ins[12]<<5 | ins[6:2]
+  note  : sign-extended from 6 bits
+  maps  : addi rd, x0, imm
+  32bit : ADDI rd, x0, imm
+
+C.ADDI16SP  funct3=011  rd=x2 (sp)
+  imm    = ins[12]<<9 | ins[4:3]<<7 | ins[5]<<6 | ins[2]<<5 | ins[6]<<4
+  note  : sign-extended from 10 bits, multiple of 16, never zero
+  maps  : addi sp, sp, imm
+  32bit : ADDI x2, x2, imm
+
+C.LUI       funct3=011  rd!=x2  format=CI
+  rd     = ins[11:7]     (full 5-bit)
+  imm    = ins[12]<<17 | ins[6:2]<<12
+  note  : sign-extended from 18 bits, never zero. result is upper 20 bits
+  maps  : lui rd, imm[31:12]
+  32bit : LUI rd, imm
+
+C.SRLI      funct3=100  funct2=00  format=CB
+  rd'/rs1' = ins[9:7]    (primed, add 8)
+  shamt    = ins[12]<<5 | ins[6:2]
+  note   : zero-extended shift amount
+  maps   : srli rd', rd', shamt
+  32bit  : SRLI rd, rd, shamt
+
+C.SRAI      funct3=100  funct2=01  format=CB
+  rd'/rs1' = ins[9:7]    (primed, add 8)
+  shamt    = ins[12]<<5 | ins[6:2]
+  maps   : srai rd', rd', shamt
+  32bit  : SRAI rd, rd, shamt
+
+C.ANDI      funct3=100  funct2=10  format=CB
+  rd'/rs1' = ins[9:7]    (primed, add 8)
+  imm      = ins[12]<<5 | ins[6:2]
+  note   : sign-extended from 6 bits
+  maps   : andi rd', rd', imm
+  32bit  : ANDI rd, rd, imm
+
+C.SUB       funct3=100  funct6=100011  funct2=00  format=CA
+  rd'/rs1' = ins[9:7]    (primed, add 8)
+  rs2'     = ins[4:2]    (primed, add 8)
+  maps   : sub rd', rd', rs2'
+  32bit  : SUB rd, rd, rs2
+
+C.XOR       funct3=100  funct6=100011  funct2=01  format=CA
+  rd'/rs1' = ins[9:7]    (primed, add 8)
+  rs2'     = ins[4:2]    (primed, add 8)
+  maps   : xor rd', rd', rs2'
+  32bit  : XOR rd, rd, rs2
+
+C.OR        funct3=100  funct6=100011  funct2=10  format=CA
+  rd'/rs1' = ins[9:7]    (primed, add 8)
+  rs2'     = ins[4:2]    (primed, add 8)
+  maps   : or rd', rd', rs2'
+  32bit  : OR rd, rd, rs2
+
+C.AND       funct3=100  funct6=100011  funct2=11  format=CA
+  rd'/rs1' = ins[9:7]    (primed, add 8)
+  rs2'     = ins[4:2]    (primed, add 8)
+  maps   : and rd', rd', rs2'
+  32bit  : AND rd, rd, rs2
+
+C.SUBW      funct3=100  funct6=100111  funct2=00  format=CA  (RV64 only)
+  rd'/rs1' = ins[9:7]    (primed, add 8)
+  rs2'     = ins[4:2]    (primed, add 8)
+  maps   : subw rd', rd', rs2'
+  32bit  : SUBW rd, rd, rs2
+
+C.ADDW      funct3=100  funct6=100111  funct2=01  format=CA  (RV64 only)
+  rd'/rs1' = ins[9:7]    (primed, add 8)
+  rs2'     = ins[4:2]    (primed, add 8)
+  maps   : addw rd', rd', rs2'
+  32bit  : ADDW rd, rd, rs2
+
+C.J         funct3=101  format=CJ
+  imm  = ins[12]<<11 | ins[8]<<10 | ins[10:9]<<8 | ins[6]<<7 |
+         ins[7]<<6   | ins[2]<<5  | ins[11]<<4   | ins[5:3]<<1
+  note : sign-extended from 12 bits, LSB always 0
+  maps : jal x0, imm
+  32bit: JAL x0, imm
+
+C.BEQZ      funct3=110  format=CB
+  rs1' = ins[9:7]        (primed, add 8)
+  imm  = ins[12]<<8 | ins[6:5]<<6 | ins[2]<<5 | ins[11:10]<<3 | ins[4:3]<<1
+  note : sign-extended from 9 bits, LSB always 0
+  maps : beq rs1', x0, imm
+  32bit: BEQ rs1, x0, imm
+
+C.BNEZ      funct3=111  format=CB
+  rs1' = ins[9:7]        (primed, add 8)
+  imm  = ins[12]<<8 | ins[6:5]<<6 | ins[2]<<5 | ins[11:10]<<3 | ins[4:3]<<1
+  note : sign-extended from 9 bits, LSB always 0
+  maps : bne rs1', x0, imm
+  32bit: BNE rs1, x0, imm
+
+---------------------------------------------------------------------------
+QUADRANT 2 (op = 0b10)
+---------------------------------------------------------------------------
+
+C.SLLI      funct3=000  format=CI
+  rd/rs1 = ins[11:7]     (full 5-bit)
+  shamt  = ins[12]<<5 | ins[6:2]
+  note  : zero-extended, rd != x0
+  maps  : slli rd, rd, shamt
+  32bit : SLLI rd, rd, shamt
+
+C.LWSP      funct3=010  format=CI
+  rd     = ins[11:7]     (full 5-bit, rd != x0)
+  imm    = ins[3:2]<<6 | ins[12]<<5 | ins[6:4]<<2
+  note  : zero-extended, sp-relative word load
+  maps  : lw rd, imm(sp)
+  32bit : LW rd, imm(x2)
+
+C.LDSP      funct3=011  format=CI  (RV64 only)
+  rd     = ins[11:7]     (full 5-bit, rd != x0)
+  imm    = ins[4:2]<<6 | ins[12]<<5 | ins[6:5]<<3
+  note  : zero-extended, sp-relative doubleword load
+  maps  : ld rd, imm(sp)
+  32bit : LD rd, imm(x2)
+
+C.JR        funct3=100  rs2=0  ins[12]=0  format=CR
+  rs1    = ins[11:7]     (full 5-bit, rs1 != x0)
+  maps  : jalr x0, rs1, 0
+  32bit : JALR x0, rs1, 0
+
+C.MV        funct3=100  ins[12]=0  rs2!=0  format=CR
+  rd     = ins[11:7]     (full 5-bit)
+  rs2    = ins[6:2]      (full 5-bit)
+  maps  : add rd, x0, rs2
+  32bit : ADD rd, x0, rs2
+
+C.EBREAK    funct3=100  ins[12]=1  rd=0  rs2=0
+  maps  : ebreak
+  32bit : EBREAK
+
+C.JALR      funct3=100  ins[12]=1  rs2=0  format=CR
+  rs1    = ins[11:7]     (full 5-bit, rs1 != x0)
+  maps  : jalr ra, rs1, 0
+  32bit : JALR x1, rs1, 0
+
+C.ADD       funct3=100  ins[12]=1  rs2!=0  format=CR
+  rd/rs1 = ins[11:7]     (full 5-bit)
+  rs2    = ins[6:2]      (full 5-bit)
+  maps  : add rd, rd, rs2
+  32bit : ADD rd, rd, rs2
+
+C.SWSP      funct3=110  format=CSS
+  rs2    = ins[6:2]      (full 5-bit)
+  imm    = ins[8:7]<<6 | ins[12:9]<<2
+  note  : zero-extended, sp-relative word store
+  maps  : sw rs2, imm(sp)
+  32bit : SW rs2, imm(x2)
+
+C.SDSP      funct3=111  format=CSS  (RV64 only)
+  rs2    = ins[6:2]      (full 5-bit)
+  imm    = ins[9:7]<<6 | ins[12:10]<<3
+  note  : zero-extended, sp-relative doubleword store
+  maps  : sd rs2, imm(sp)
+  32bit : SD rs2, imm(x2)
