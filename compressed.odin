@@ -48,6 +48,10 @@ BITS_3 :: u16(0x7)
 BITS_4 :: u16(0xf)
 BITS_5 :: u16(0x1f)
 
+assemble_type_u :: proc(imm, rd: u32, op: OPCODE) -> u32 {
+	return (imm & MASK_20BIT) << 12 | (rd & MASK_5BIT) << 7 | u32(op) & MASK_7BIT
+}
+
 assemble_type_s :: proc(imm, rs1, rs2: u32, op: OPCODE, funct3: S_Funct3) -> u32 {
 	return(
 		((imm >> 5) & MASK_7BIT) << 25 |
@@ -105,6 +109,11 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 			return assemble_type_i(u32(sign_extend(imm, 6)), 0, rd, .ADDI, I_Funct3.ADDI)
 
 		case .LUI:
+			// CI    ins[12] | ins[6:2]
+			rd := u32((ins >> 7) & BITS_5)
+			imm := u32((ins >> 12) & BITS_1) << 5 | u32((ins >> 2) & BITS_5)
+			return assemble_type_u(u32(sign_extend(imm, 6)), rd, .LUI)
+
 		case .MISC_ALU:
 		case .J:
 		case .BEQZ:

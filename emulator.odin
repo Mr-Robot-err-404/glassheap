@@ -121,7 +121,10 @@ main :: proc() {
 			trace(&b, decoded.address)
 			flush(&b)
 
-			if decoded.jump {continue}
+			if decoded.jump {
+				fmt.println("------------------------------------------")
+				continue
+			}
 			if decoded.syscon {
 				fmt.println("received syscon")
 				os.exit(0)
@@ -135,7 +138,10 @@ main :: proc() {
 			trace(&b, decoded.address)
 			flush(&b)
 
-			if decoded.jump {continue}
+			if decoded.jump {
+				fmt.println("------------------------------------------")
+				continue
+			}
 			if decoded.syscon {
 				fmt.println("received syscon")
 				os.exit(0)
