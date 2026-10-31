@@ -202,25 +202,42 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 		imm := sign_extend(parsed.imm, 12)
 		address := cpu.registers[parsed.rs1] + u64(imm)
 
-		if address == SYSCON {return Decoded{syscon = true}}
-
 		switch funct3 {
 		case .SB:
 			value := u8(cpu.registers[parsed.rs2])
+			dec := decoded("sb", RegisterName[parsed.rs2], RegisterName[parsed.rs1], imm)
+
 			switch address {
 			case UART:
 				fmt.eprintf("%c", value)
+			case SYSCON:
+				dec.syscon = true
+				return dec
 			case:
 				write_to_memory(ram, address, value)
 			}
-			return decoded("sb", RegisterName[parsed.rs2], RegisterName[parsed.rs1], imm)
+			return dec
 
 		case .SD:
+			dec := decoded("sd", RegisterName[parsed.rs2], RegisterName[parsed.rs1], imm)
+
+			if address == SYSCON {
+				dec.syscon = true
+				return dec
+			}
 			write_u64_to_memory(ram, address, cpu.registers[parsed.rs2])
-			return decoded("sd", RegisterName[parsed.rs2], RegisterName[parsed.rs1], imm)
+			return dec
 
 		case .SH:
 		case .SW:
+			dec := decoded("sw", RegisterName[parsed.rs2], RegisterName[parsed.rs1], imm)
+
+			if address == SYSCON {
+				dec.syscon = true
+				return dec
+			}
+			write_u32_to_memory(ram, address, u32(cpu.registers[parsed.rs2]))
+			return dec
 		}
 
 	case .UNKNOWN:
@@ -232,6 +249,14 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 write_to_memory :: proc(ram: []byte, address: u64, value: u8) {
 	idx := address - RAM_OFFSET
 	ram[idx] = value
+}
+
+write_u32_to_memory :: proc(ram: []byte, address: u64, value: u32) {
+	idx := address - RAM_OFFSET
+	for i: u64 = 0; i < 4; i += 1 {
+		n := i * 8
+		ram[idx + i] = u8(value >> n)
+	}
 }
 
 write_u64_to_memory :: proc(ram: []byte, address: u64, value: u64) {

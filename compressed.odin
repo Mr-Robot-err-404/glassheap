@@ -85,6 +85,15 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 		case .LW:
 		case .LD:
 		case .SW:
+			// CS :: imm = ins[5]<<6 | ins[12:10]<<3 | ins[6]<<2, zx
+			imm :=
+				u32((ins >> 5) & BITS_1) << 6 |
+				u32((ins >> 10) & BITS_3) << 3 |
+				u32((ins >> 6) & BITS_1) << 2
+			rs1 := u32(ins >> 7 & BITS_3) + 8
+			rs2 := u32(ins >> 2 & BITS_3) + 8
+			return assemble_type_s(imm, rs1, rs2, .SB, .SW)
+
 		case .SD:
 			// CS :: imm = ins[6:5]<<6 | ins[12:10]<<3
 			imm := u32((ins >> 5) & BITS_2) << 6 | u32((ins >> 10) & BITS_3) << 3
