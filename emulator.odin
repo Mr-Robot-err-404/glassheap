@@ -159,34 +159,35 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 	case .LUI:
 		parsed := parse_type_u(ins)
 		address := u64(sign_extend(parsed.imm << 12, 32))
-		cpu.registers[parsed.rd] = address
+		set_register(cpu, parsed.rd, address)
 		return decoded("lui", RegisterName[parsed.rd], i64(parsed.imm), address)
 
 	case .AUIPC:
 		parsed := parse_type_u(ins)
 		imm := sign_extend(parsed.imm << 12, 32)
 		address := cpu.pc + u64(imm)
-		cpu.registers[parsed.rd] = address
+		set_register(cpu, parsed.rd, address)
 		return decoded("auipc", RegisterName[parsed.rd], i64(parsed.imm), address)
 
 	case .ADDI:
 		parsed := parse_type_i(ins)
 		imm := sign_extend(parsed.imm, 12)
-		cpu.registers[parsed.rd] = cpu.registers[parsed.rs1] + u64(imm)
+		set_register(cpu, parsed.rd, cpu.registers[parsed.rs1] + u64(imm))
 		return decoded("addi", RegisterName[parsed.rd], RegisterName[parsed.rs1], imm)
 
 	case .JAL:
 		parsed := parse_type_j(ins)
 		imm := sign_extend(parsed.imm, 20)
-		cpu.registers[parsed.rd] = cpu.pc + 4
+		set_register(cpu, parsed.rd, cpu.pc + 4)
 		cpu.pc += u64(imm)
 		return decoded("jal", RegisterName[parsed.rd], imm, cpu.pc, true)
 
 	case .JALR:
 		parsed := parse_type_i(ins)
 		imm := sign_extend(parsed.imm, 12)
-		cpu.registers[parsed.rd] = cpu.pc + 4
+		set_register(cpu, parsed.rd, cpu.pc + 4)
 		cpu.pc = ensure_even(cpu.registers[parsed.rs1] + u64(imm))
+
 		return decoded(
 			"jalr",
 			RegisterName[parsed.rd],
@@ -244,6 +245,11 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 		return Decoded{}
 	}
 	return Decoded{}
+}
+
+set_register :: proc(cpu: ^Cpu, rd: u32, value: u64) {
+	if rd == 0 {return}
+	cpu.registers[rd] = value
 }
 
 write_to_memory :: proc(ram: []byte, address: u64, value: u8) {
