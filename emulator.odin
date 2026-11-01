@@ -25,6 +25,7 @@ OPCODE :: enum u32 {
 	JAL     = 0x6f,
 	JALR    = 0x67,
 	LD      = 0x3,
+	BLT     = 0x63,
 	UNKNOWN = 0x00,
 }
 
@@ -72,7 +73,12 @@ TypeS :: struct {
 	rs2:    u32,
 	imm:    u32,
 }
-
+TypeB :: struct {
+	funct3: u32,
+	rs1:    u32,
+	rs2:    u32,
+	imm:    u32,
+}
 
 Decoded :: struct {
 	mnemonic:  string,
@@ -200,6 +206,8 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 		set_register(cpu, parsed.rd, read(ram, idx, u64))
 		return decoded("ld", RegisterName[parsed.rd], RegisterName[parsed.rs1], imm)
 
+	case .BLT:
+
 	case .SB:
 		parsed := parse_type_s(ins)
 		funct3 := S_Funct3(parsed.funct3)
@@ -245,9 +253,9 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 		}
 
 	case .UNKNOWN:
-		return Decoded{panic = fmt.aprintf("instruction not implemented: %d", ins)}
+		return Decoded{panic = fmt.aprintf("instruction not implemented: %08x", ins)}
 	}
-	return Decoded{panic = fmt.aprintf("instruction not implemented: %d", ins)}
+	return Decoded{panic = fmt.aprintf("instruction not implemented: %08x", ins)}
 }
 
 set_register :: proc(cpu: ^Cpu, rd: u32, value: u64) {
@@ -285,6 +293,11 @@ write_u64_to_memory :: proc(ram: []byte, address: u64, value: u64) {
 sign_extend :: proc(n: u32, bits: u32) -> i64 {
 	shift := u32(64 - bits)
 	return i64(u64(n) << shift) >> shift
+}
+
+parse_type_b :: proc(ins: u32) -> TypeB {
+	// TODO:
+	return TypeB{}
 }
 
 parse_type_s :: proc(ins: u32) -> TypeS {

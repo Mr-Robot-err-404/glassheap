@@ -179,6 +179,14 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 		case .SLLI:
 		case .LWSP:
 		case .LDSP:
+			// CI    ins[4:2]<<6 | ins[12]<<5 | ins[6:5]<<3        zx
+			imm :=
+				u32((ins >> 2) & BITS_3) << 6 |
+				u32((ins >> 12) & BITS_1) << 5 |
+				u32((ins >> 5) & BITS_2) << 3
+			rd := u32((ins >> 7) & BITS_5)
+			return assemble_type_i(imm, 0x2, rd, .LD, .LD)
+
 		case .MISC:
 			// CR
 			rs1 := u32((ins >> 7) & BITS_5)
