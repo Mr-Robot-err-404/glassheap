@@ -41,6 +41,16 @@ I_Funct3 :: enum u32 {
 	SRLI  = 0x5,
 }
 
+L_Funct3 :: enum u32 {
+	LB  = 0x0,
+	LH  = 0x1,
+	LW  = 0x2,
+	LD  = 0x3,
+	LBU = 0x4,
+	LHU = 0x5,
+	LWU = 0x6,
+}
+
 B_Funct3 :: enum u32 {
 	BEQ  = 0x0,
 	BNE  = 0x1,

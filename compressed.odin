@@ -63,7 +63,22 @@ assemble_type_s :: proc(imm, rs1, rs2: u32, op: OPCODE, funct3: S_Funct3) -> u32
 	)
 }
 
-assemble_type_i :: proc(imm, rs1, rd: u32, op: OPCODE, funct3: I_Funct3) -> u32 {
+assemble_type_i :: proc {
+	assemble_type_i_default,
+	assemble_type_i_load,
+}
+
+assemble_type_i_default :: proc(imm, rs1, rd: u32, op: OPCODE, funct3: I_Funct3) -> u32 {
+	return(
+		((imm & MASK_12BIT) << 20) |
+		((rs1 & MASK_5BIT) << 15) |
+		((u32(funct3) & MASK_3BIT) << 12) |
+		((rd & MASK_5BIT) << 7) |
+		(u32(op) & MASK_7BIT) \
+	)
+}
+
+assemble_type_i_load :: proc(imm, rs1, rd: u32, op: OPCODE, funct3: L_Funct3) -> u32 {
 	return(
 		((imm & MASK_12BIT) << 20) |
 		((rs1 & MASK_5BIT) << 15) |
@@ -94,6 +109,12 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 		case .ADDI4SPN:
 		case .LW:
 		case .LD:
+			// CL :: ins[6:5]<<6 | ins[12:10]<<3
+			imm := u32((ins >> 5) & BITS_2) << 6 | u32((ins >> 10) & BITS_3) << 3
+			rs1 := u32((ins >> 7) & BITS_3) + 8
+			rd := u32((ins >> 2) & BITS_3) + 8
+			return assemble_type_i(u32(imm), rs1, rd, .LD, .LD)
+
 		case .SW:
 			// CS :: imm = ins[5]<<6 | ins[12:10]<<3 | ins[6]<<2, zx
 			imm :=

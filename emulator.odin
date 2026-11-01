@@ -24,6 +24,7 @@ OPCODE :: enum u32 {
 	SB      = 0x23,
 	JAL     = 0x6f,
 	JALR    = 0x67,
+	LD      = 0x3,
 	UNKNOWN = 0x00,
 }
 
@@ -190,6 +191,14 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 			cpu.pc,
 			true,
 		)
+
+	case .LD:
+		parsed := parse_type_i(ins)
+		imm := sign_extend(parsed.imm, 12)
+		address := cpu.registers[parsed.rs1] + u64(imm)
+		idx := i32(address - RAM_OFFSET)
+		set_register(cpu, parsed.rd, read(ram, idx, u64))
+		return decoded("ld", RegisterName[parsed.rd], RegisterName[parsed.rs1], imm)
 
 	case .SB:
 		parsed := parse_type_s(ins)

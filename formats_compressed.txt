@@ -11,7 +11,7 @@ FIELD POSITIONS :: these never change, regardless of format
   rd / rs1    ins[11:7]    5 bits   full range x0-x31
   rs2         ins[6:2]     5 bits   full range x0-x31
   rd' / rs1'  ins[9:7]     3 bits   PRIMED, x8-x15 only
-  rs2'        ins[4:2]     3 bits   PRIMED, x8-x15 only
+  rs2' / rd'  ins[4:2]     3 bits   PRIMED, x8-x15 only
 
 primed decode: actual_register = encoded + 8
   000=x8(s0)   001=x9(s1)   010=x10(a0)  011=x11(a1)
