@@ -73,6 +73,16 @@ assemble_type_i :: proc(imm, rs1, rd: u32, op: OPCODE, funct3: I_Funct3) -> u32 
 	)
 }
 
+assemble_type_j :: proc(imm, rd: u32, op: OPCODE) -> u32 {
+	return(
+		((imm >> 20) & MASK_1BIT) << 31 |
+		((imm >> 1) & MASK_10BIT) << 21 |
+		((imm >> 11) & MASK_1BIT) << 20 |
+		((imm >> 12) & MASK_8BIT) << 12 |
+		(rd & MASK_5BIT) << 7 |
+		u32(op) & MASK_7BIT \
+	)
+}
 
 decompress_16_bit :: proc(ins: u16) -> u32 {
 	op := Quadrant(ins & 0x3)
@@ -118,13 +128,28 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 			return assemble_type_i(u32(sign_extend(imm, 6)), 0, rd, .ADDI, I_Funct3.ADDI)
 
 		case .LUI:
-			// CI    ins[12] | ins[6:2]
+			// CI :: ins[12] | ins[6:2]
 			rd := u32((ins >> 7) & BITS_5)
 			imm := u32((ins >> 12) & BITS_1) << 5 | u32((ins >> 2) & BITS_5)
 			return assemble_type_u(u32(sign_extend(imm, 6)), rd, .LUI)
 
 		case .MISC_ALU:
 		case .J:
+			// CJ :: ins[12]<<11 | ins[8]<<10 | ins[10:9]<<8 |
+			//		 ins[6]<<7 | ins[7]<<6 | ins[2]<<5 |
+			//		 ins[11]<<4 | ins[5:3]<<1
+			// NOTE: such fun
+			imm :=
+				u32((ins >> 12) & BITS_1) << 11 |
+				u32((ins >> 8) & BITS_1) << 10 |
+				u32((ins >> 9) & BITS_2) << 8 |
+				u32((ins >> 6) & BITS_1) << 7 |
+				u32((ins >> 7) & BITS_1) << 6 |
+				u32((ins >> 2) & BITS_1) << 5 |
+				u32((ins >> 11) & BITS_1) << 4 |
+				u32((ins >> 3) & BITS_3) << 1
+			return assemble_type_j(u32(sign_extend(imm, 12)), 0, .JAL)
+
 		case .BEQZ:
 		case .BNEZ:
 		}

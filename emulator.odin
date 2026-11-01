@@ -80,6 +80,7 @@ Decoded :: struct {
 	address:   u64,
 	jump:      bool,
 	syscon:    bool,
+	panic:     string,
 }
 
 main :: proc() {
@@ -121,6 +122,11 @@ main :: proc() {
 			trace(&b, cpu.pc, ins)
 		}
 		decoded := decode_32_bit(ins, &cpu, ram)
+		if len(decoded.panic) > 0 {
+			flush(&b)
+			fmt.println(decoded.panic)
+			panic("nope")
+		}
 		trace(&b, decoded.mnemonic)
 		trace(&b, decoded.registers, decoded.imm)
 		trace(&b, decoded.address)
@@ -229,9 +235,9 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 		}
 
 	case .UNKNOWN:
-		fmt.panicf("instruction not implemented: %d", ins)
+		return Decoded{panic = fmt.aprintf("instruction not implemented: %d", ins)}
 	}
-	fmt.panicf("instruction not implemented: %d", ins)
+	return Decoded{panic = fmt.aprintf("instruction not implemented: %d", ins)}
 }
 
 set_register :: proc(cpu: ^Cpu, rd: u32, value: u64) {
