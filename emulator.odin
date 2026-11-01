@@ -122,6 +122,7 @@ main :: proc() {
 			trace(&b, cpu.pc, ins)
 		}
 		decoded := decode_32_bit(ins, &cpu, ram)
+
 		if len(decoded.panic) > 0 {
 			flush(&b)
 			fmt.println(decoded.panic)
@@ -219,7 +220,7 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 				dec.syscon = true
 				return dec
 			}
-			write_u64_to_memory(ram, address, cpu.registers[parsed.rs2])
+			write_to_memory(ram, address, cpu.registers[parsed.rs2])
 			return dec
 
 		case .SH:
@@ -230,7 +231,7 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 				dec.syscon = true
 				return dec
 			}
-			write_u32_to_memory(ram, address, u32(cpu.registers[parsed.rs2]))
+			write_to_memory(ram, address, u32(cpu.registers[parsed.rs2]))
 			return dec
 		}
 
@@ -245,7 +246,13 @@ set_register :: proc(cpu: ^Cpu, rd: u32, value: u64) {
 	cpu.registers[rd] = value
 }
 
-write_to_memory :: proc(ram: []byte, address: u64, value: u8) {
+write_to_memory :: proc {
+	write_u8_to_memory,
+	write_u32_to_memory,
+	write_u64_to_memory,
+}
+
+write_u8_to_memory :: proc(ram: []byte, address: u64, value: u8) {
 	idx := address - RAM_OFFSET
 	ram[idx] = value
 }
