@@ -104,50 +104,33 @@ main :: proc() {
 	strings.builder_init(&b)
 	defer strings.builder_destroy(&b)
 
-	n := 25
-	for n > 0 {
-		defer n -= 1
-
+	for {
 		idx := cpu.pc - RAM_OFFSET
 		ins := read(ram, i32(idx), u32)
+		seek: u64 = 4
 
-		switch {
-		case !is_32_bit(ins):
+		if !is_32_bit(ins) {
 			trace(&b, cpu.pc, u16(ins))
 			ins = decompress_16_bit(u16(ins))
-			decoded := decode_32_bit(ins, &cpu, ram)
-			trace(&b, decoded.mnemonic)
-			trace(&b, decoded.registers, decoded.imm)
-			trace(&b, decoded.address)
-			flush(&b)
-
-			if decoded.jump {
-				fmt.println("------------------------------------------")
-				continue
-			}
-			if decoded.syscon {
-				fmt.println("received syscon")
-				os.exit(0)
-			}
-			cpu.pc += 2
-		case:
+			seek = 2
+		} else {
 			trace(&b, cpu.pc, ins)
-			decoded := decode_32_bit(ins, &cpu, ram)
-			trace(&b, decoded.mnemonic)
-			trace(&b, decoded.registers, decoded.imm)
-			trace(&b, decoded.address)
-			flush(&b)
-
-			if decoded.jump {
-				fmt.println("------------------------------------------")
-				continue
-			}
-			if decoded.syscon {
-				fmt.println("received syscon")
-				os.exit(0)
-			}
-			cpu.pc += 4
 		}
+		decoded := decode_32_bit(ins, &cpu, ram)
+		trace(&b, decoded.mnemonic)
+		trace(&b, decoded.registers, decoded.imm)
+		trace(&b, decoded.address)
+		flush(&b)
+
+		if decoded.jump {
+			fmt.println("------------------------------------------")
+			continue
+		}
+		if decoded.syscon {
+			fmt.println("received syscon")
+			os.exit(0)
+		}
+		cpu.pc += seek
 	}
 }
 
@@ -242,9 +225,9 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 		}
 
 	case .UNKNOWN:
-		return Decoded{}
+		fmt.panicf("instruction not implemented: %d", ins)
 	}
-	return Decoded{}
+	fmt.panicf("instruction not implemented: %d", ins)
 }
 
 set_register :: proc(cpu: ^Cpu, rd: u32, value: u64) {
