@@ -83,9 +83,13 @@ Decoded :: struct {
 }
 
 main :: proc() {
-	data, err := os.read_entire_file("build/glassheap.elf", context.allocator)
+	path := "build/hi/glassheap.elf"
+	if len(os.args) > 1 {
+		path = os.args[1]
+	}
+	data, err := os.read_entire_file(path, context.allocator)
 	if err != nil {
-		fmt.panicf("failed to read elf: %w", err)
+		fmt.panicf("failed to read elf %s: %w", path, err)
 	}
 	header: Header
 	header.Entry = read(data, i32(ELF_HEADER.ENTRY), u64)
