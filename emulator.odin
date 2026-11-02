@@ -207,6 +207,21 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 		return decoded("ld", RegisterName[parsed.rd], RegisterName[parsed.rs1], imm)
 
 	case .BLT:
+		parsed := parse_type_b(ins)
+		imm := sign_extend(parsed.imm, 13)
+		if i64(cpu.registers[parsed.rs1]) < i64(cpu.registers[parsed.rs2]) {
+			cpu.pc += u64(imm)
+			return decoded(
+				"blt",
+				RegisterName[parsed.rs1],
+				RegisterName[parsed.rs2],
+				imm,
+				cpu.pc,
+				true,
+			)
+		}
+		return decoded("blt", RegisterName[parsed.rs2], RegisterName[parsed.rs1], imm)
+
 
 	case .SB:
 		parsed := parse_type_s(ins)
@@ -296,8 +311,16 @@ sign_extend :: proc(n: u32, bits: u32) -> i64 {
 }
 
 parse_type_b :: proc(ins: u32) -> TypeB {
-	// TODO:
-	return TypeB{}
+	imm_12 := (ins >> 31) & MASK_1BIT
+	imm_5 := (ins >> 25) & MASK_6BIT
+	imm_1 := (ins >> 8) & MASK_4BIT
+	imm_11 := (ins >> 7) & MASK_1BIT
+	return TypeB {
+		funct3 = (ins >> 12) & MASK_3BIT,
+		rs1    = (ins >> 15) & MASK_5BIT,
+		rs2    = (ins >> 20) & MASK_5BIT,
+		imm    = imm_12 << 12 | imm_5 << 5 | imm_1 << 1 | imm_11 << 11,
+	}
 }
 
 parse_type_s :: proc(ins: u32) -> TypeS {
