@@ -53,6 +53,17 @@ BITS_3 :: u16(0x7)
 BITS_4 :: u16(0xf)
 BITS_5 :: u16(0x1f)
 
+assemble_type_r :: proc(rs2, rs1, rd: u32, op: OPCODE, funct3: R_Funct3, funct7: R_Funct7) -> u32 {
+	return(
+		(u32(funct7) & MASK_7BIT) << 25 |
+		(rs2 & MASK_5BIT) << 20 |
+		(rs1 & MASK_5BIT) << 15 |
+		(u32(funct3) & MASK_3BIT) << 12 |
+		(rd & MASK_5BIT) << 7 |
+		u32(op) & MASK_7BIT \
+	)
+}
+
 assemble_type_u :: proc(imm, rd: u32, op: OPCODE) -> u32 {
 	return (imm & MASK_20BIT) << 12 | (rd & MASK_5BIT) << 7 | u32(op) & MASK_7BIT
 }
@@ -154,8 +165,25 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 			return assemble_type_i(u32(sign_extend(imm, 6)), 0, rd, .ADDI, I_Funct3.ADDI)
 
 		case .LUI:
-			// CI :: ins[12] | ins[6:2]
 			rd := u32((ins >> 7) & BITS_5)
+
+			switch lui(rd) {
+			case .LUI:
+				// CI :: ins[12] | ins[6:2]
+				imm := u32((ins >> 12) & BITS_1) << 5 | u32((ins >> 2) & BITS_5)
+				return assemble_type_u(u32(sign_extend(imm, 6)), rd, .LUI)
+
+			case .ADDI16SP:
+				// CI    ins[12]<<9 | ins[4:3]<<7 | ins[5]<<6 | ins[2] << 5 | ins[6] << 4
+				imm :=
+					u32((ins >> 12) & BITS_1) << 9 |
+					u32((ins >> 3) & BITS_2) << 7 |
+					u32((ins >> 5) & BITS_1) << 6 |
+					u32((ins >> 2) & BITS_1) << 5 |
+					u32((ins >> 6) & BITS_1) << 4
+				return assemble_type_i(u32(sign_extend(imm, 10)), rd, 0x2, .ADDI, .ADDI)
+			}
+
 			imm := u32((ins >> 12) & BITS_1) << 5 | u32((ins >> 2) & BITS_5)
 			return assemble_type_u(u32(sign_extend(imm, 6)), rd, .LUI)
 
@@ -206,6 +234,7 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 			case .JALR:
 				return assemble_type_i(0, rs1, 1, .JALR, .ADDI)
 			case .ADD:
+				return assemble_type_r(rs2, rs1, rs1, .ADD, .ADD, .DEFAULT)
 			}
 		case .SWSP:
 		case .SDSP:
@@ -216,6 +245,11 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 		}
 	}
 	return 0
+}
+
+lui :: proc(rd: u32) -> Q1_LUI {
+	if rd == 2 {return .ADDI16SP}
+	return .LUI
 }
 
 misc :: proc(rs1, rs2: u32, bit12: u16) -> Q2_MISC {

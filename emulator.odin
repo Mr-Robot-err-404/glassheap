@@ -22,6 +22,7 @@ OPCODE :: enum u32 {
 	AUIPC   = 0x17,
 	ADDI    = 0x13,
 	ADDIW   = 0x1b,
+	ADD     = 0x33,
 	SB      = 0x23,
 	JAL     = 0x6f,
 	JALR    = 0x67,
@@ -79,6 +80,13 @@ TypeB :: struct {
 	rs1:    u32,
 	rs2:    u32,
 	imm:    u32,
+}
+TypeR :: struct {
+	funct7: u32,
+	rs2:    u32,
+	rs1:    u32,
+	funct3: u32,
+	rd:     u32,
 }
 
 Decoded :: struct {
@@ -183,6 +191,17 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 		value := sign_extend(u32(cpu.registers[parsed.rs1] + u64(imm)), 32)
 		set_register(cpu, parsed.rd, u64(value))
 		return decoded("addiw", RegisterName[parsed.rd], RegisterName[parsed.rs1], imm)
+
+	case .ADD:
+		parsed := parse_type_r(ins)
+		set_register(cpu, parsed.rd, cpu.registers[parsed.rs1] + cpu.registers[parsed.rs2])
+		return decoded(
+			"add",
+			RegisterName[parsed.rd],
+			RegisterName[parsed.rs1],
+			RegisterName[parsed.rs2],
+			sign_extend(parsed.rd, 4),
+		)
 
 	case .JAL:
 		parsed := parse_type_j(ins)
@@ -331,6 +350,16 @@ parse_type_b :: proc(ins: u32) -> TypeB {
 	}
 }
 
+parse_type_r :: proc(ins: u32) -> TypeR {
+	return TypeR {
+		funct7 = (ins >> 25) & MASK_7BIT,
+		rs2    = (ins >> 20) & MASK_5BIT,
+		rs1    = (ins >> 15) & MASK_5BIT,
+		funct3 = (ins >> 12) & MASK_3BIT,
+		rd     = (ins >> 7) & MASK_5BIT,
+	}
+}
+
 parse_type_s :: proc(ins: u32) -> TypeS {
 	imm_5 := (ins >> 25) & MASK_7BIT
 	imm := (ins >> 7) & MASK_5BIT
@@ -405,6 +434,7 @@ read :: proc(source: []byte, offset: i32, $T: typeid) -> T {
 decoded :: proc {
 	decoded_1,
 	decoded_2,
+	decoded_3,
 }
 decoded_1 :: proc(
 	mnemonic: string,
@@ -432,6 +462,24 @@ decoded_2 :: proc(
 	return Decoded {
 		mnemonic  = mnemonic,
 		registers = {r0, r1, ""},
+		imm       = imm,
+		address   = address,
+		jump      = jump,
+	}
+}
+
+decoded_3 :: proc(
+	mnemonic: string,
+	r0: string,
+	r1: string,
+	r2: string,
+	imm: i64,
+	address: u64 = 0,
+	jump: bool = false,
+) -> Decoded {
+	return Decoded {
+		mnemonic  = mnemonic,
+		registers = {r0, r1, r2},
 		imm       = imm,
 		address   = address,
 		jump      = jump,
