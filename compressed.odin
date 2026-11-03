@@ -25,6 +25,11 @@ Q1_INS :: enum u16 {
 	BNEZ     = 0x7,
 }
 
+Q1_LUI :: enum {
+	ADDI16SP,
+	LUI,
+}
+
 Q2_INS :: enum u16 {
 	SLLI = 0x0,
 	LWSP = 0x2,

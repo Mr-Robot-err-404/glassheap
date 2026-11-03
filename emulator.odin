@@ -21,6 +21,7 @@ OPCODE :: enum u32 {
 	LUI     = 0x37,
 	AUIPC   = 0x17,
 	ADDI    = 0x13,
+	ADDIW   = 0x1b,
 	SB      = 0x23,
 	JAL     = 0x6f,
 	JALR    = 0x67,
@@ -175,6 +176,13 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 		imm := sign_extend(parsed.imm, 12)
 		set_register(cpu, parsed.rd, cpu.registers[parsed.rs1] + u64(imm))
 		return decoded("addi", RegisterName[parsed.rd], RegisterName[parsed.rs1], imm)
+
+	case .ADDIW:
+		parsed := parse_type_i(ins)
+		imm := sign_extend(parsed.imm, 12)
+		value := sign_extend(u32(cpu.registers[parsed.rs1] + u64(imm)), 32)
+		set_register(cpu, parsed.rd, u64(value))
+		return decoded("addiw", RegisterName[parsed.rd], RegisterName[parsed.rs1], imm)
 
 	case .JAL:
 		parsed := parse_type_j(ins)
