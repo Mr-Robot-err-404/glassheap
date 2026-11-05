@@ -23,12 +23,27 @@ OPCODE :: enum u32 {
 	ADDI    = 0x13,
 	ADDIW   = 0x1b,
 	ADD     = 0x33,
+	ADDW    = 0x3b,
 	SB      = 0x23,
 	JAL     = 0x6f,
 	JALR    = 0x67,
 	LD      = 0x3,
 	BLT     = 0x63,
 	UNKNOWN = 0x00,
+}
+
+W_INS :: enum {
+	ADDW,
+	SUBW,
+	SLLW,
+	SRLW,
+	SRAW,
+	MULW,
+	DIVW,
+	DIVUW,
+	REMW,
+	REMUW,
+	RESERVED,
 }
 
 Segment_Type :: enum u32 {
@@ -229,6 +244,30 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 			0,
 		)
 
+	case .ADDW:
+		parsed := parse_type_r(ins)
+		switch addw(parsed.funct3, parsed.funct7) {
+		case .ADDW:
+			value := u32(cpu.registers[parsed.rs1] + cpu.registers[parsed.rs2])
+			set_register(cpu, parsed.rd, u64(sign_extend(value, 32)))
+			return decoded(
+				"addw",
+				RegisterName[parsed.rd],
+				RegisterName[parsed.rs1],
+				RegisterName[parsed.rs2],
+			)
+		case .SUBW:
+		case .SLLW:
+		case .SRLW:
+		case .SRAW:
+		case .MULW:
+		case .DIVW:
+		case .DIVUW:
+		case .REMW:
+		case .REMUW:
+		case .RESERVED:
+		}
+
 	case .JAL:
 		parsed := parse_type_j(ins)
 		imm := sign_extend(parsed.imm, 21)
@@ -426,6 +465,41 @@ parse_type_u :: proc(ins: u32) -> TypeU {
 	}
 }
 
+addw :: proc(funct3, funct7: u32) -> W_INS {
+	switch funct7 {
+	case 0x00:
+		switch funct3 {
+		case 0x0:
+			return .ADDW
+		case 0x1:
+			return .SLLW
+		case 0x5:
+			return .SRLW
+		}
+	case 0x20:
+		switch funct3 {
+		case 0x0:
+			return .SUBW
+		case 0x5:
+			return .SRAW
+		}
+	case 0x01:
+		switch funct3 {
+		case 0x0:
+			return .MULW
+		case 0x4:
+			return .DIVW
+		case 0x5:
+			return .DIVUW
+		case 0x6:
+			return .REMW
+		case 0x7:
+			return .REMUW
+		}
+	}
+	return .RESERVED
+}
+
 is_32_bit :: proc(ins: u32) -> bool {
 	return ins & 0x3 == 0x3
 }
@@ -466,7 +540,7 @@ decoded :: proc {
 decoded_1 :: proc(
 	mnemonic: string,
 	r0: string,
-	imm: i64,
+	imm: i64 = 0,
 	address: u64 = 0,
 	jump: bool = false,
 ) -> Decoded {
@@ -482,7 +556,7 @@ decoded_2 :: proc(
 	mnemonic: string,
 	r0: string,
 	r1: string,
-	imm: i64,
+	imm: i64 = 0,
 	address: u64 = 0,
 	jump: bool = false,
 ) -> Decoded {
@@ -500,7 +574,7 @@ decoded_3 :: proc(
 	r0: string,
 	r1: string,
 	r2: string,
-	imm: i64,
+	imm: i64 = 0,
 	address: u64 = 0,
 	jump: bool = false,
 ) -> Decoded {
