@@ -229,6 +229,11 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 			case .OR:
 			case .AND:
 			case .SUBW:
+				// CA :: rd'/rs1',rs2'
+				rs1 := rd_prime(ins)
+				rs2 := rd2_prime(ins)
+				return assemble_type_r(rs2, rs1, rs1, .ADDW, .ADD, .SUB)
+
 			case .ADDW:
 				// CA :: rd'/rs1',rs2'
 				rs1 := rd_prime(ins)
