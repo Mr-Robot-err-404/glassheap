@@ -257,6 +257,15 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 				RegisterName[parsed.rs2],
 			)
 		case .SUBW:
+			value := u32(cpu.registers[parsed.rs1] - cpu.registers[parsed.rs2])
+			set_register(cpu, parsed.rd, u64(sign_extend(value, 32)))
+			return decoded(
+				"subw",
+				RegisterName[parsed.rd],
+				RegisterName[parsed.rs1],
+				RegisterName[parsed.rs2],
+			)
+
 		case .SLLW:
 		case .SRLW:
 		case .SRAW:

@@ -128,6 +128,13 @@ assemble_type_j :: proc(imm, rd: u32, op: OPCODE) -> u32 {
 	)
 }
 
+ci_rd :: proc(ins: u16) -> u32 {
+	return u32((ins >> 7) & BITS_5)
+}
+ci_imm6 :: proc(ins: u16) -> u32 {
+	return u32((ins >> 12) & BITS_1) << 5 | u32((ins >> 2) & BITS_5)
+}
+
 decompress_16_bit :: proc(ins: u16) -> u32 {
 	op := Quadrant(ins & 0x3)
 	funct3 := ins >> 13
@@ -165,25 +172,24 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 		switch Q1_INS(funct3) {
 		case .ADDI:
 			// CI :: imm = ins[12]<<5 | ins[6:2]
-			rd := (ins >> 7) & BITS_5
-			imm := ((ins >> 12) & BITS_1) << 5 | ((ins >> 2) & BITS_5)
+			rd := ci_rd(ins)
+			imm := ci_imm6(ins)
 			imm_32 := u32(sign_extend(u32(imm), 6))
 			return assemble_type_i(imm_32, u32(rd), u32(rd), .ADDI, .ADDI)
 
 		case .JAL:
 		case .LI:
 			// CI :: ins[12] << 5 | ins[6:2]
-			rd := u32((ins >> 7) & BITS_5)
-			imm := u32((ins >> 12) & BITS_1) << 5 | u32((ins >> 2) & BITS_5)
-			return assemble_type_i(u32(sign_extend(imm, 6)), 0, rd, .ADDI, I_Funct3.ADDI)
+			imm := ci_imm6(ins)
+			return assemble_type_i(u32(sign_extend(imm, 6)), 0, ci_rd(ins), .ADDI, I_Funct3.ADDI)
 
 		case .LUI:
-			rd := u32((ins >> 7) & BITS_5)
+			rd := ci_rd(ins)
 
 			switch lui(rd) {
 			case .LUI:
 				// CI :: ins[12] | ins[6:2]
-				imm := u32((ins >> 12) & BITS_1) << 5 | u32((ins >> 2) & BITS_5)
+				imm := ci_imm6(ins)
 				return assemble_type_u(u32(sign_extend(imm, 6)), rd, .LUI)
 
 			case .ADDI16SP:
@@ -205,13 +211,13 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 			case .SRLI:
 				// CB    ins[12]<<5 | ins[6:2]
 				rd := u32((ins >> 7) & BITS_3) + 8
-				imm := u32((ins >> 12) & BITS_1) << 5 | u32((ins >> 2) & BITS_5)
+				imm := ci_imm6(ins)
 				return assemble_type_i(imm, rd, rd, .ADDI, .SRLI)
 
 			case .SRAI:
 				// CB    ins[12]<<5 | ins[6:2]
 				rd := u32((ins >> 7) & BITS_3) + 8
-				imm := u32((ins >> 12) & BITS_1) << 5 | u32((ins >> 2) & BITS_5) | (0x10 << 6)
+				imm := ci_imm6(ins) | (0x10 << 6)
 				return assemble_type_i(imm, rd, rd, .ADDI, .SRLI)
 
 			case .ANDI:
@@ -258,8 +264,7 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 				u32((ins >> 2) & BITS_3) << 6 |
 				u32((ins >> 12) & BITS_1) << 5 |
 				u32((ins >> 5) & BITS_2) << 3
-			rd := u32((ins >> 7) & BITS_5)
-			return assemble_type_i(imm, 0x2, rd, .LD, .LD)
+			return assemble_type_i(imm, 0x2, ci_rd(ins), .LD, .LD)
 
 		case .MISC:
 			// CR
