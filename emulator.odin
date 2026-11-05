@@ -604,10 +604,14 @@ trace_mnemonic :: proc(b: ^strings.Builder, name: string) {
 trace_registers :: proc(b: ^strings.Builder, names: [3]string, n: i64) {
 	if len(names[0]) == 0 {return}
 	s := names[0]
-	for i in 1 ..< 2 {
+	for i in 1 ..< 3 {
 		name := names[i]
 		if len(name) == 0 {break}
 		s = fmt.tprintf("%s,%s", s, name)
+	}
+	if n == 0 {
+		strings.write_string(b, fmt.tprintf("%-23s", s))
+		return
 	}
 	strings.write_string(b, fmt.tprintf("%-23s", fmt.tprintf("%s,%d", s, n)))
 }

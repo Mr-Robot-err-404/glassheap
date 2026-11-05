@@ -224,6 +224,7 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 				// CA :: rd'/rs1' = ins[9:7]+8, rs2' = ins[4:2]+8
 				rs1 := u32((ins >> 7) & BITS_3) + 8
 				rs2 := u32((ins >> 2) & BITS_3) + 8
+				return assemble_type_r(rs2, rs1, rs1, .ADDW, .ADD, .DEFAULT)
 
 			case .RESERVED:
 			}
