@@ -25,6 +25,19 @@ Q1_INS :: enum u16 {
 	BNEZ     = 0x7,
 }
 
+Q1_MISC_ALU :: enum {
+	SRLI,
+	SRAI,
+	ANDI,
+	SUB,
+	XOR,
+	OR,
+	AND,
+	SUBW,
+	ADDW,
+	RESERVED,
+}
+
 Q1_LUI :: enum {
 	ADDI16SP,
 	LUI,
@@ -188,6 +201,29 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 			return assemble_type_u(u32(sign_extend(imm, 6)), rd, .LUI)
 
 		case .MISC_ALU:
+			switch misc_alu(ins) {
+			case .SRLI:
+				// CB    ins[12]<<5 | ins[6:2]
+				rd := u32((ins >> 7) & BITS_3) + 8
+				imm := u32((ins >> 12) & BITS_1) << 5 | u32((ins >> 2) & BITS_5)
+				return assemble_type_i(imm, rd, rd, .ADDI, .SRLI)
+
+			case .SRAI:
+				// CB    ins[12]<<5 | ins[6:2]
+				rd := u32((ins >> 7) & BITS_3) + 8
+				imm := u32((ins >> 12) & BITS_1) << 5 | u32((ins >> 2) & BITS_5) | (0x10 << 6)
+				return assemble_type_i(imm, rd, rd, .ADDI, .SRLI)
+
+			case .ANDI:
+			case .SUB:
+			case .XOR:
+			case .OR:
+			case .AND:
+			case .SUBW:
+			case .ADDW:
+			case .RESERVED:
+			}
+
 		case .J:
 			// CJ :: ins[12]<<11 | ins[8]<<10 | ins[10:9]<<8 |
 			//		 ins[6]<<7 | ins[7]<<6 | ins[2]<<5 |
@@ -250,6 +286,53 @@ decompress_16_bit :: proc(ins: u16) -> u32 {
 lui :: proc(rd: u32) -> Q1_LUI {
 	if rd == 2 {return .ADDI16SP}
 	return .LUI
+}
+
+// branch on ins[11:10]:
+// 00 → C.SRLI
+// 01 → C.SRAI
+// 10 → C.ANDI
+// 11 → register-register ops, needs further splitting
+
+// Further splitting :: ins[12] and ins[6:5]:
+// - ins[12]=0: 00→C.SUB, 01→C.XOR, 10→C.OR, 11→C.AND
+// - ins[12]=1: 00→C.SUBW, 01→C.ADDW, 10/11 reserved
+
+misc_alu :: proc(ins: u16) -> Q1_MISC_ALU {
+	// NOTE: *sighs*
+	op := (ins >> 10) & BITS_2
+	switch op {
+	case 0x0:
+		return .SRLI
+	case 0x1:
+		return .SRAI
+	case 0x2:
+		return .ANDI
+	case 0x3:
+		split := (ins >> 12) & BITS_1
+		sub := (ins >> 5) & BITS_2
+		switch split {
+		case 0x0:
+			switch sub {
+			case 0x0:
+				return .SUB
+			case 0x1:
+				return .XOR
+			case 0x2:
+				return .OR
+			case 0x3:
+				return .AND
+			}
+		case 0x1:
+			switch sub {
+			case 0x0:
+				return .SUBW
+			case 0x1:
+				return .ADDW
+			}
+		}
+	}
+	return .RESERVED
 }
 
 misc :: proc(rs1, rs2: u32, bit12: u16) -> Q2_MISC {

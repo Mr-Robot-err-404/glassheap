@@ -181,9 +181,35 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 
 	case .ADDI:
 		parsed := parse_type_i(ins)
-		imm := sign_extend(parsed.imm, 12)
-		set_register(cpu, parsed.rd, cpu.registers[parsed.rs1] + u64(imm))
-		return decoded("addi", RegisterName[parsed.rd], RegisterName[parsed.rs1], imm)
+		switch parsed.funct3 {
+		case 0x5:
+			// x[rd] = x[rs1] >>s shamt
+			// funct3 0x5 :: imm[11:6]=funct6 (0x10=SRAI arithmetic, 0x00=SRLI logical), imm[5:0]=shamt
+			shamt := parsed.imm & MASK_6BIT
+			funct6 := (parsed.imm >> 6) & MASK_6BIT
+			switch funct6 {
+			case 0x10:
+				set_register(cpu, parsed.rd, u64(i64(cpu.registers[parsed.rs1]) >> shamt))
+				return decoded(
+					"srai",
+					RegisterName[parsed.rd],
+					RegisterName[parsed.rs1],
+					i64(shamt),
+				)
+			case:
+				set_register(cpu, parsed.rd, cpu.registers[parsed.rs1] >> shamt)
+				return decoded(
+					"srli",
+					RegisterName[parsed.rd],
+					RegisterName[parsed.rs1],
+					i64(shamt),
+				)
+			}
+		case:
+			imm := sign_extend(parsed.imm, 12)
+			set_register(cpu, parsed.rd, cpu.registers[parsed.rs1] + u64(imm))
+			return decoded("addi", RegisterName[parsed.rd], RegisterName[parsed.rs1], imm)
+		}
 
 	case .ADDIW:
 		parsed := parse_type_i(ins)
