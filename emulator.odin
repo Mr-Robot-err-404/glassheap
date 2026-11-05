@@ -226,12 +226,12 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 			RegisterName[parsed.rd],
 			RegisterName[parsed.rs1],
 			RegisterName[parsed.rs2],
-			sign_extend(parsed.rd, 4),
+			0,
 		)
 
 	case .JAL:
 		parsed := parse_type_j(ins)
-		imm := sign_extend(parsed.imm, 20)
+		imm := sign_extend(parsed.imm, 21)
 		set_register(cpu, parsed.rd, cpu.pc + 4)
 		cpu.pc += u64(imm)
 		return decoded("jal", RegisterName[parsed.rd], imm, cpu.pc, true)
@@ -262,6 +262,7 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 	case .BLT:
 		parsed := parse_type_b(ins)
 		imm := sign_extend(parsed.imm, 13)
+
 		if i64(cpu.registers[parsed.rs1]) < i64(cpu.registers[parsed.rs2]) {
 			cpu.pc += u64(imm)
 			return decoded(
@@ -273,7 +274,7 @@ decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 				true,
 			)
 		}
-		return decoded("blt", RegisterName[parsed.rs2], RegisterName[parsed.rs1], imm)
+		return decoded("blt", RegisterName[parsed.rs1], RegisterName[parsed.rs2], imm)
 
 
 	case .SB:
