@@ -39,6 +39,23 @@ guest: $(ELF)
 qemu: $(ELF)
 	qemu-system-riscv64 -machine virt -nographic -bios none -kernel $(ELF) -d in_asm 2> $(OUT)/trace.txt
 
+build-%:
+	@$(MAKE) --no-print-directory all GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1)
+
+adiff-%:
+	@$(MAKE) --no-print-directory qemu GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1)
+	@$(MAKE) --no-print-directory trace GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1) 2>/dev/null > /tmp/mine.txt
+	@grep -v '^--' /tmp/mine.txt > /tmp/mine_clean.txt
+	@grep '$(ADDR)' $(BUILD)/$*/trace.txt | head -5
+	@echo ---
+	@grep '$(ADDR)' /tmp/mine_clean.txt | head -5
+
+diff-%:
+	@$(MAKE) --no-print-directory qemu GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1)
+	@$(MAKE) --no-print-directory trace GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1) 2>/dev/null | grep -o '^0x[0-9a-f]*' > /tmp/mine.pc
+	@grep -o '^0x[0-9a-f]*' $(BUILD)/$*/trace.txt > /tmp/qemu.pc
+	@diff /tmp/qemu.pc /tmp/mine.pc | head -20
+
 trace-%:
 	@$(MAKE) --no-print-directory trace GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1)
 
