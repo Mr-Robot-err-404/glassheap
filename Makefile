@@ -39,8 +39,17 @@ guest: $(ELF)
 qemu: $(ELF)
 	qemu-system-riscv64 -machine virt -nographic -bios none -kernel $(ELF) -d in_asm 2> $(OUT)/trace.txt
 
+qemu-regs: $(ELF)
+	-qemu-system-riscv64 -machine virt -nographic -bios none -kernel $(ELF) -d in_asm,cpu -accel tcg,one-insn-per-tb=on 2> $(OUT)/trace-regs.txt
+
 build-%:
 	@$(MAKE) --no-print-directory all GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1)
+
+rdiff-%:
+	@echo "=== QEMU ==="
+	@grep -E '^ pc |^ x' $(BUILD)/$*/trace-regs.txt | grep -A8 "pc            00000000$(ADDR:0x%=%)" | grep '^ x' | head -8
+	@echo "=== MINE ==="
+	@odin run . -- $(BUILD)/$*/glassheap.elf --regs 2>/dev/null | grep -A8 '^$(ADDR):' | grep '^ x' | head -8
 
 adiff-%:
 	@$(MAKE) --no-print-directory qemu GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1)
@@ -67,6 +76,10 @@ guest-%:
 
 qemu-%:
 	@$(MAKE) --no-print-directory qemu GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1)
+
+regs-%:
+	@$(MAKE) --no-print-directory qemu-regs GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1)
+	@grep -E '^0x|^ pc |^ x' $(BUILD)/$*/trace-regs.txt > $(BUILD)/$*/trace-regs-clean.txt
 
 clean:
 	rm -rf $(BUILD)
