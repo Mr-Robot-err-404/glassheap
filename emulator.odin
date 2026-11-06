@@ -5,9 +5,12 @@ import "core:os"
 import "core:strings"
 
 ELF_HEADER :: enum i32 {
-	ENTRY = 24,
-	PHOFF = 32,
-	PHNUM = 56,
+	ENTRY     = 24,
+	PHOFF     = 32,
+	PHNUM     = 56,
+	SHOFF     = 0x28,
+	SHENTSIZE = 0x3a,
+	SHNUM     = 0x3c,
 }
 
 PROGRAM_HEADER :: enum i32 {
@@ -15,6 +18,28 @@ PROGRAM_HEADER :: enum i32 {
 	OFFSET = 8,
 	VADDR  = 16,
 	FILESZ = 32,
+}
+
+SECTION_HEADER :: enum i32 {
+	TYPE   = 4,
+	OFFSET = 24,
+	SIZE   = 32,
+	LINK   = 40,
+}
+
+Header :: struct {
+	Entry:     u64,
+	Phoff:     u64,
+	Phnum:     u16,
+	Shoff:     u64,
+	Shentsize: u16,
+	Shnum:     u16,
+}
+
+PLoad :: struct {
+	Offset: u64,
+	Vaddr:  u64,
+	Filesz: u64,
 }
 
 OPCODE :: enum u32 {
@@ -53,17 +78,6 @@ Segment_Type :: enum u32 {
 	PT_INTERP  = 3,
 }
 
-Header :: struct {
-	Entry: u64,
-	Phoff: u64,
-	Phnum: u16,
-}
-
-PLoad :: struct {
-	Offset: u64,
-	Vaddr:  u64,
-	Filesz: u64,
-}
 
 Cpu :: struct {
 	registers: [32]u64,
@@ -127,6 +141,9 @@ main :: proc() {
 	header.Entry = read(data, i32(ELF_HEADER.ENTRY), u64)
 	header.Phoff = read(data, i32(ELF_HEADER.PHOFF), u64)
 	header.Phnum = read(data, i32(ELF_HEADER.PHNUM), u16)
+	header.Shoff = read(data, i32(ELF_HEADER.SHOFF), u64)
+	header.Shnum = read(data, i32(ELF_HEADER.SHOFF), u16)
+	header.Shentsize = read(data, i32(ELF_HEADER.SHENTSIZE), u16)
 
 	ram := make([]byte, RAM_SIZE)
 	defer delete(ram)
@@ -527,6 +544,21 @@ addw :: proc(funct3, funct7: u32) -> W_INS {
 
 is_32_bit :: proc(ins: u32) -> bool {
 	return ins & 0x3 == 0x3
+}
+
+load_sections :: proc(header: Header, data: []byte) {
+	symtab_off, symtab_size: u64
+	strtab_idx: u32
+
+	for i in 0 ..< header.Shnum {
+		base := i32((header.Shoff + u64(i)) * u64(header.Shentsize))
+		if read(data, base + i32(SECTION_HEADER.TYPE), u32) != SHT_SYMTAB {continue}
+
+		symtab_off = read(data, base + i32(SECTION_HEADER.OFFSET), u64)
+		symtab_size = read(data, base + i32(SECTION_HEADER.SIZE), u64)
+		strtab_idx = read(data, base + i32(SECTION_HEADER.LINK), u32)
+		break
+	}
 }
 
 load_ram :: proc(header: Header, data: []byte, ram: []byte) {
