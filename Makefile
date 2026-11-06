@@ -52,17 +52,18 @@ rdiff-%:
 	@odin run . -- $(BUILD)/$*/glassheap.elf --regs 2>/dev/null | grep -A8 '^$(ADDR):' | grep '^ x' | head -8
 
 adiff-%:
-	@$(MAKE) --no-print-directory qemu GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1)
-	@$(MAKE) --no-print-directory trace GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1) 2>/dev/null > /tmp/mine.txt
-	@grep -v '^--' /tmp/mine.txt > /tmp/mine_clean.txt
-	@grep '$(ADDR)' $(BUILD)/$*/trace.txt | head -5
-	@echo ---
-	@grep '$(ADDR)' /tmp/mine_clean.txt | head -5
+	@echo "=== QEMU ==="
+	@grep '$(ADDR):' $(BUILD)/$*/trace-regs.txt | head -1
+	@echo "executions: `grep -c 'pc            00000000$(ADDR:0x%=%)' $(BUILD)/$*/trace-regs.txt`"
+	@echo "=== MINE ==="
+	@$(MAKE) --no-print-directory trace GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1) 2>/dev/null | grep '^$(ADDR):' > /tmp/mine.txt
+	@head -1 /tmp/mine.txt
+	@echo "executions: `wc -l < /tmp/mine.txt | tr -d ' '`"
 
 diff-%:
-	@$(MAKE) --no-print-directory qemu GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1)
+	@$(MAKE) --no-print-directory qemu-regs GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1)
 	@$(MAKE) --no-print-directory trace GUEST=guest/$*/$(shell ls guest/$* 2>/dev/null | head -1) 2>/dev/null | grep -o '^0x[0-9a-f]*' > /tmp/mine.pc
-	@grep -o '^0x[0-9a-f]*' $(BUILD)/$*/trace.txt > /tmp/qemu.pc
+	@grep '^ pc  ' $(BUILD)/$*/trace-regs.txt | awk '{print "0x" substr($$2, 9)}' | grep '^0x8' > /tmp/qemu.pc
 	@diff /tmp/qemu.pc /tmp/mine.pc | head -20
 
 trace-%:
