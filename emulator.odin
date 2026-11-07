@@ -4,43 +4,6 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 
-ELF_HEADER :: enum i32 {
-	ENTRY     = 24,
-	PHOFF     = 32,
-	PHNUM     = 56,
-	SHOFF     = 0x28,
-	SHENTSIZE = 0x3a,
-	SHNUM     = 0x3c,
-}
-
-PROGRAM_HEADER :: enum i32 {
-	TYPE   = 0,
-	OFFSET = 8,
-	VADDR  = 16,
-	FILESZ = 32,
-}
-
-SECTION_HEADER :: enum i32 {
-	TYPE   = 4,
-	OFFSET = 24,
-	SIZE   = 32,
-	LINK   = 40,
-}
-
-Header :: struct {
-	Entry:     u64,
-	Phoff:     u64,
-	Phnum:     u16,
-	Shoff:     u64,
-	Shentsize: u16,
-	Shnum:     u16,
-}
-
-PLoad :: struct {
-	Offset: u64,
-	Vaddr:  u64,
-	Filesz: u64,
-}
 
 OPCODE :: enum u32 {
 	LUI     = 0x37,
@@ -142,59 +105,60 @@ main :: proc() {
 	header.Phoff = read(data, i32(ELF_HEADER.PHOFF), u64)
 	header.Phnum = read(data, i32(ELF_HEADER.PHNUM), u16)
 	header.Shoff = read(data, i32(ELF_HEADER.SHOFF), u64)
-	header.Shnum = read(data, i32(ELF_HEADER.SHOFF), u16)
+	header.Shnum = read(data, i32(ELF_HEADER.SHNUM), u16)
 	header.Shentsize = read(data, i32(ELF_HEADER.SHENTSIZE), u16)
 
 	ram := make([]byte, RAM_SIZE)
 	defer delete(ram)
 
 	load_ram(header, data, ram)
+	load_sections(header, data)
 
-	cpu := Cpu {
-		pc = header.Entry,
-	}
-	b := strings.Builder{}
-	strings.builder_init(&b)
-	defer strings.builder_destroy(&b)
-
-	for {
-		idx := cpu.pc - RAM_OFFSET
-		ins := read(ram, i32(idx), u32)
-		seek: u64 = 4
-
-		snapshot := cpu.registers
-
-		if !is_32_bit(ins) {
-			trace(&b, cpu.pc, u16(ins))
-			ins = decompress_16_bit(u16(ins))
-			seek = 2
-		} else {
-			trace(&b, cpu.pc, ins)
-		}
-		decoded := decode_32_bit(ins, &cpu, ram)
-
-		if len(decoded.panic) > 0 {
-			flush(&b)
-			fmt.println(decoded.panic)
-			panic("nope")
-		}
-		trace(&b, decoded.mnemonic)
-		trace(&b, decoded.registers, decoded.imm)
-		trace(&b, decoded.address)
-
-		cpu_dump(&b, snapshot)
-		flush(&b)
-
-		if decoded.jump {
-			fmt.println("------------------------------------------")
-			continue
-		}
-		if decoded.syscon {
-			fmt.println("received syscon")
-			os.exit(0)
-		}
-		cpu.pc += seek
-	}
+	// cpu := Cpu {
+	// 	pc = header.Entry,
+	// }
+	// b := strings.Builder{}
+	// strings.builder_init(&b)
+	// defer strings.builder_destroy(&b)
+	//
+	// for {
+	// 	idx := cpu.pc - RAM_OFFSET
+	// 	ins := read(ram, i32(idx), u32)
+	// 	seek: u64 = 4
+	//
+	// 	snapshot := cpu.registers
+	//
+	// 	if !is_32_bit(ins) {
+	// 		trace(&b, cpu.pc, u16(ins))
+	// 		ins = decompress_16_bit(u16(ins))
+	// 		seek = 2
+	// 	} else {
+	// 		trace(&b, cpu.pc, ins)
+	// 	}
+	// 	decoded := decode_32_bit(ins, &cpu, ram)
+	//
+	// 	if len(decoded.panic) > 0 {
+	// 		flush(&b)
+	// 		fmt.println(decoded.panic)
+	// 		panic("nope")
+	// 	}
+	// 	trace(&b, decoded.mnemonic)
+	// 	trace(&b, decoded.registers, decoded.imm)
+	// 	trace(&b, decoded.address)
+	//
+	// 	cpu_dump(&b, snapshot)
+	// 	flush(&b)
+	//
+	// 	if decoded.jump {
+	// 		fmt.println("------------------------------------------")
+	// 		continue
+	// 	}
+	// 	if decoded.syscon {
+	// 		fmt.println("received syscon")
+	// 		os.exit(0)
+	// 	}
+	// 	cpu.pc += seek
+	// }
 }
 
 
@@ -546,38 +510,6 @@ is_32_bit :: proc(ins: u32) -> bool {
 	return ins & 0x3 == 0x3
 }
 
-load_sections :: proc(header: Header, data: []byte) {
-	symtab_off, symtab_size: u64
-	strtab_idx: u32
-
-	for i in 0 ..< header.Shnum {
-		base := i32((header.Shoff + u64(i)) * u64(header.Shentsize))
-		if read(data, base + i32(SECTION_HEADER.TYPE), u32) != SHT_SYMTAB {continue}
-
-		symtab_off = read(data, base + i32(SECTION_HEADER.OFFSET), u64)
-		symtab_size = read(data, base + i32(SECTION_HEADER.SIZE), u64)
-		strtab_idx = read(data, base + i32(SECTION_HEADER.LINK), u32)
-		break
-	}
-}
-
-load_ram :: proc(header: Header, data: []byte, ram: []byte) {
-	end := header.Phoff + (56 * u64(header.Phnum))
-	for i := header.Phoff; i < end; i += 56 {
-		buf := data[i:i + 56]
-
-		type := read(buf, i32(PROGRAM_HEADER.TYPE), u32)
-		if type != 1 {continue}
-
-		load := PLoad {
-			Offset = read(buf, i32(PROGRAM_HEADER.OFFSET), u64),
-			Vaddr  = read(buf, i32(PROGRAM_HEADER.VADDR), u64),
-			Filesz = read(buf, i32(PROGRAM_HEADER.FILESZ), u64),
-		}
-		idx := load.Vaddr - RAM_OFFSET
-		copy(ram[idx:idx + load.Filesz], data[load.Offset:load.Offset + load.Filesz])
-	}
-}
 
 ensure_even :: proc(bits: u64) -> u64 {
 	return bits & ~u64(1)
