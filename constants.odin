@@ -130,5 +130,3 @@ RegisterName := [32]string {
 	"t5",
 	"t6",
 }
-
-SHT_SYMTAB :: 2

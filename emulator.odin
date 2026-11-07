@@ -91,6 +91,11 @@ Decoded :: struct {
 	panic:     string,
 }
 
+Symbols :: struct {
+	funcs: []Func,
+	idx:   u64,
+}
+
 main :: proc() {
 	path := "build/hi/glassheap.elf"
 	if len(os.args) > 1 {
@@ -110,55 +115,55 @@ main :: proc() {
 
 	ram := make([]byte, RAM_SIZE)
 	defer delete(ram)
-
 	load_ram(header, data, ram)
-	load_sections(header, data)
 
-	// cpu := Cpu {
-	// 	pc = header.Entry,
-	// }
-	// b := strings.Builder{}
-	// strings.builder_init(&b)
-	// defer strings.builder_destroy(&b)
-	//
-	// for {
-	// 	idx := cpu.pc - RAM_OFFSET
-	// 	ins := read(ram, i32(idx), u32)
-	// 	seek: u64 = 4
-	//
-	// 	snapshot := cpu.registers
-	//
-	// 	if !is_32_bit(ins) {
-	// 		trace(&b, cpu.pc, u16(ins))
-	// 		ins = decompress_16_bit(u16(ins))
-	// 		seek = 2
-	// 	} else {
-	// 		trace(&b, cpu.pc, ins)
-	// 	}
-	// 	decoded := decode_32_bit(ins, &cpu, ram)
-	//
-	// 	if len(decoded.panic) > 0 {
-	// 		flush(&b)
-	// 		fmt.println(decoded.panic)
-	// 		panic("nope")
-	// 	}
-	// 	trace(&b, decoded.mnemonic)
-	// 	trace(&b, decoded.registers, decoded.imm)
-	// 	trace(&b, decoded.address)
-	//
-	// 	cpu_dump(&b, snapshot)
-	// 	flush(&b)
-	//
-	// 	if decoded.jump {
-	// 		fmt.println("------------------------------------------")
-	// 		continue
-	// 	}
-	// 	if decoded.syscon {
-	// 		fmt.println("received syscon")
-	// 		os.exit(0)
-	// 	}
-	// 	cpu.pc += seek
-	// }
+	cpu := Cpu {
+		pc = header.Entry,
+	}
+	symbols := Symbols {
+		funcs = load_sections(header, data),
+	}
+	b := strings.Builder{}
+	strings.builder_init(&b)
+	defer strings.builder_destroy(&b)
+
+	for {
+		idx := cpu.pc - RAM_OFFSET
+		ins := read(ram, i32(idx), u32)
+		seek: u64 = 4
+		snapshot := cpu.registers
+
+		if !is_32_bit(ins) {
+			trace(&b, cpu.pc, u16(ins))
+			ins = decompress_16_bit(u16(ins))
+			seek = 2
+		} else {
+			trace(&b, cpu.pc, ins)
+		}
+		decoded := decode_32_bit(ins, &cpu, ram)
+
+		if len(decoded.panic) > 0 {
+			flush(&b)
+			fmt.println(decoded.panic)
+			panic("nope")
+		}
+		trace(&b, decoded.mnemonic)
+		trace(&b, decoded.registers, decoded.imm)
+		trace(&b, decoded.address)
+
+		cpu_dump(&b, snapshot)
+		flush(&b)
+
+		if decoded.jump {
+			fmt.println("------------------------------------------")
+			continue
+		}
+		if decoded.syscon {
+			fmt.println("received syscon")
+			os.exit(0)
+		}
+		cpu.pc += seek
+	}
 }
 
 
