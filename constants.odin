@@ -96,6 +96,55 @@ R_Funct7 :: enum u32 {
 	SRA     = 0x20,
 }
 
+TypeU :: struct {
+	rd:  u32,
+	imm: u32,
+}
+TypeI :: struct {
+	rd:     u32,
+	funct3: u32,
+	rs1:    u32,
+	imm:    u32,
+}
+TypeJ :: struct {
+	rd:  u32,
+	imm: u32,
+}
+TypeS :: struct {
+	funct3: u32,
+	rs1:    u32,
+	rs2:    u32,
+	imm:    u32,
+}
+TypeB :: struct {
+	funct3: u32,
+	rs1:    u32,
+	rs2:    u32,
+	imm:    u32,
+}
+TypeR :: struct {
+	funct7: u32,
+	rs2:    u32,
+	rs1:    u32,
+	funct3: u32,
+	rd:     u32,
+}
+
+
+W_INS :: enum {
+	ADDW,
+	SUBW,
+	SLLW,
+	SRLW,
+	SRAW,
+	MULW,
+	DIVW,
+	DIVUW,
+	REMW,
+	REMUW,
+	RESERVED,
+}
+
 RegisterName := [32]string {
 	"zero",
 	"ra",

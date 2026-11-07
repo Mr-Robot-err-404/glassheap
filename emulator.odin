@@ -20,65 +20,9 @@ OPCODE :: enum u32 {
 	UNKNOWN = 0x00,
 }
 
-W_INS :: enum {
-	ADDW,
-	SUBW,
-	SLLW,
-	SRLW,
-	SRAW,
-	MULW,
-	DIVW,
-	DIVUW,
-	REMW,
-	REMUW,
-	RESERVED,
-}
-
-Segment_Type :: enum u32 {
-	PT_NULL    = 0,
-	PT_LOAD    = 1,
-	PT_DYNAMIC = 2,
-	PT_INTERP  = 3,
-}
-
-
 Cpu :: struct {
 	registers: [32]u64,
 	pc:        u64,
-}
-
-TypeU :: struct {
-	rd:  u32,
-	imm: u32,
-}
-TypeI :: struct {
-	rd:     u32,
-	funct3: u32,
-	rs1:    u32,
-	imm:    u32,
-}
-TypeJ :: struct {
-	rd:  u32,
-	imm: u32,
-}
-TypeS :: struct {
-	funct3: u32,
-	rs1:    u32,
-	rs2:    u32,
-	imm:    u32,
-}
-TypeB :: struct {
-	funct3: u32,
-	rs1:    u32,
-	rs2:    u32,
-	imm:    u32,
-}
-TypeR :: struct {
-	funct7: u32,
-	rs2:    u32,
-	rs1:    u32,
-	funct3: u32,
-	rd:     u32,
 }
 
 Decoded :: struct {
@@ -91,6 +35,11 @@ Decoded :: struct {
 	panic:     string,
 }
 
+Func :: struct {
+	lo:   u64,
+	hi:   u64,
+	name: string,
+}
 Symbols :: struct {
 	funcs: []Func,
 	idx:   u64,

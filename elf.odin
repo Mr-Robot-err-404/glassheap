@@ -53,12 +53,6 @@ PLoad :: struct {
 	Filesz: u64,
 }
 
-Func :: struct {
-	lo:   u64,
-	hi:   u64,
-	name: string,
-}
-
 load_sections :: proc(header: Header, data: []byte) -> []Func {
 	funcs := make([dynamic]Func)
 
