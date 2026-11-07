@@ -1,0 +1,82 @@
+build/counter/glassheap.elf    file size 0x9140
+
+
+┌─ ELF HEADER @0x00 ──────────────────────────────────┐
+│  0x00  magic     7f 45 4c 46   "\x7fELF"            │
+│  0x04  class     02            64-bit               │
+│  0x05  data      01            little endian        │
+│  0x12  machine   f3 00         RISC-V               │
+│                                                     │
+│  0x18  e_entry       0x80000000   u64               │
+│  0x20  e_phoff       0x40         u64  ─────────┐   │
+│  0x28  e_shoff       0x8e00       u64           │   │
+│  0x36  e_phentsize   56           u16           │   │
+│  0x38  e_phnum       7            u16           │   │
+│  0x3a  e_shentsize   64           u16           │   │
+│  0x3c  e_shnum       13           u16           │   │
+│  0x3e  e_shstrndx    11           u16           │   │
+└─────────────────────────────────────────────────┼───┘
+         everything in the tail block is u16      │
+                                                  │
+                                                  ▼
+┌─ PROGRAM HEADER TABLE @0x40 ───────────────────────────────────────────┐
+│  7 descriptors, 56 B each                                              │
+│  "how to get this file into memory"                                    │
+│                                                                        │
+│  i  p_type        p_offset  p_vaddr     p_filesz  p_memsz              │
+│  ─  ────────────  ────────  ──────────  ────────  ────────             │
+│  0  PT_LOAD   1   0x1000    0x80000000      9200      9200   r-x .text │
+│  1  PT_LOAD   1   0x33f0    0x800023f0      2432      2432   r-- rodata│
+│  2  PT_LOAD   1   0x3d70    0x80002d70      1512      1512   rw- .data │
+│  3  PT_TLS    7   0x3f00    0x80002f00         0      1040   skipped   │
+│  4  GNU_RELRO     0x4310    0x80003310        72        72   skipped   │
+│  5  GNU_STACK     0x0       0x0                0         0   skipped   │
+│  6  RISCV_ATTR    0x4358    0x0               116       116   skipped  │
+│                                                                        │
+│  load_ram keeps only p_type == PT_LOAD (1)                             │
+└───────────┬────────────────────────────────────────────────────────────┘
+            │
+            │    per record, 3 fields matter:
+            │
+            │    p_offset  where the bytes are in the FILE
+            │    p_vaddr   where they belong in GUEST memory
+            │    p_filesz  how many bytes to move
+            │
+            ▼
+┌─ PROGRAM HEADER RECORD (56 B) ──────────────────────┐
+│  +0   p_type    u32   ◄── PROGRAM_HEADER.TYPE       │
+│  +4   p_flags   u32       r/w/x bits                │
+│  +8   p_offset  u64   ◄── PROGRAM_HEADER.OFFSET     │
+│  +16  p_vaddr   u64   ◄── PROGRAM_HEADER.VADDR      │
+│  +24  p_paddr   u64       unused, bare metal        │
+│  +32  p_filesz  u64   ◄── PROGRAM_HEADER.FILESZ     │
+│  +40  p_memsz   u64       >= filesz, see note       │
+│  +48  p_align   u64                                 │
+└─────────────────────────────────────────────────────┘
+
+
+THE COPY
+────────
+
+  FILE (data[])                        RAM (4 MB, zeroed)
+                                       RAM_OFFSET = 0x80000000
+
+  0x0000 ┌──────────────┐
+         │ elf header   │             idx 0x0000 ┌──────────────┐ 0x80000000
+  0x0040 │ prog headers │  ──┐                   │   .text      │
+         │              │    │ 0x1000            │   9200 B     │
+  0x1000 ├──────────────┤ ◄──┘  ──────────────►  │              │
+         │ .text        │                 0x23f0 ├──────────────┤ 0x800023f0
+  0x33f0 ├──────────────┤  ─────────────────►    │   .rodata    │
+         │ .rodata      │                        │   2432 B     │
+  0x3d70 ├──────────────┤  ─────────────────►    ├──────────────┤ 0x80002d70
+         │ .data        │                 0x2d70 │   .data      │
+  0x43e8 ├──────────────┤                        │   1512 B     │
+         │ .symtab      │                        ├──────────────┤ 0x80002f00
+  0x7a4f ├──────────────┤                        │   .tbss      │
+         │ .strtab      │                        │   (already 0)│
+  0x8e00 ├──────────────┤                        │              │
+         │ sect headers │                        │      ...     │
+  0x9140 └──────────────┘                        └──────────────┘ 0x80400000
+
+  entry = 0x80000000  ──►  cpu.pc
