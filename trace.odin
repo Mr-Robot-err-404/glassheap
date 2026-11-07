@@ -17,6 +17,11 @@ cpu_dump :: proc(b: ^strings.Builder, registers: [32]u64) {
 	}
 }
 
+trace_symbol :: proc(b: ^strings.Builder, name: string) {
+	strings.write_string(b, "------------------------------------------\n")
+	strings.write_string(b, fmt.tprintf("IN: %s\n", name))
+}
+
 trace :: proc {
 	trace_32_start,
 	trace_16,

@@ -42,8 +42,9 @@ Func :: struct {
 }
 Symbols :: struct {
 	funcs: []Func,
-	idx:   u64,
+	idx:   int,
 }
+
 
 main :: proc() {
 	path := "build/hi/glassheap.elf"
@@ -72,6 +73,8 @@ main :: proc() {
 	symbols := Symbols {
 		funcs = load_sections(header, data),
 	}
+	current, _ := lookup(&symbols, RAM_OFFSET)
+
 	b := strings.Builder{}
 	strings.builder_init(&b)
 	defer strings.builder_destroy(&b)
@@ -82,6 +85,12 @@ main :: proc() {
 		seek: u64 = 4
 		snapshot := cpu.registers
 
+		if fn, ok := lookup(&symbols, cpu.pc); ok {
+			if current.name != symbols.funcs[symbols.idx].name {
+				current = symbols.funcs[symbols.idx]
+				trace_symbol(&b, current.name)
+			}
+		}
 		if !is_32_bit(ins) {
 			trace(&b, cpu.pc, u16(ins))
 			ins = decompress_16_bit(u16(ins))
@@ -104,7 +113,6 @@ main :: proc() {
 		flush(&b)
 
 		if decoded.jump {
-			fmt.println("------------------------------------------")
 			continue
 		}
 		if decoded.syscon {
@@ -115,6 +123,20 @@ main :: proc() {
 	}
 }
 
+lookup :: proc(symbols: ^Symbols, pc: u64) -> (Func, bool) {
+	current := symbols.funcs[symbols.idx]
+	if pc >= current.lo && pc < current.hi {return current, true}
+
+	for i in 0 ..< len(symbols.funcs) {
+		fn := symbols.funcs[i]
+
+		if pc >= fn.lo && pc < fn.hi {
+			symbols.idx = i
+			return fn, true
+		}
+	}
+	return Func{}, false
+}
 
 decode_32_bit :: proc(ins: u32, cpu: ^Cpu, ram: []byte) -> Decoded {
 	opcode := OPCODE(ins & MASK_7BIT)
